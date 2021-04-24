@@ -150,9 +150,9 @@ class HumanRegression :
             print("Testing the function")
             y_pred = np.zeros(y.shape)
             if len(features) != 1 :
-                for i in range(0, X.shape[0]) : y_pred[i] = f(*X[i])
+                for i in range(0, X.shape[0]) : y_pred[i] = f(*x[i])
             else :
-                for i in range(0, X.shape[0]) : y_pred[i] = f(X[i])
+                for i in range(0, X.shape[0]) : y_pred[i] = f(x[i])
             print(y_pred)
             
             print("Computing mean squared error")
@@ -172,22 +172,66 @@ class HumanRegression :
         # TODO return MSE?
         return
     
-    def predict(X, map_features_to_variables=None) :
-        return
+    def predict(self, X, map_variables_to_features=None) :
+        """
+        Once the model is trained, this function can be used to predict unseen values.
+        It will fail if the model has not been trained (TODO is this the default scikit-learn behavior?)
+
+        Parameters
+        ----------
+        X : array-like or sparse matrix, shape(n_samples, n_features)
+            Samples.
+            
+        map_features_to_variables : dict, optional
+            A mapping between variables and features can be specified, if for
+            some reason a different mapping than the one provided during instantiation
+            is needed for this new array. The default is None, and in that case
+            the model will use the previously provided mapping.
+
+        Returns
+        -------
+        C : array, shape(n_samples)
+            Returns predicted values.
+
+        """
+        # create new expression, replacing parameters with their values
+        local_expression = self.expression.subs(self.parameter_values)
+        
+        # lambdify the expression, to evaluate it properly
+        f = lambdify(self.variables, local_expression, 'numpy')
+        
+        # if a different mapping has been specified as argument, use it to prepare the data;
+        # otherwise, use classic mapping
+        mapping = self.variables_to_features
+        if map_variables_to_features is not None : mapping = map_variables_to_features
+        
+        # prepare feature list and data
+        features = [mapping[v] for v in self.variables]
+        x = X[:,features]
+        
+        # finally, evaluate the function
+        y_pred = np.zeros((X.shape[0], 1))
+        # again, if there is just one feature, we don't need to flatten the arguments
+        if len(features) != 1 :
+            for i in range(0, X.shape[0]) : y_pred[i] = f(*x[i])
+        else :
+            for i in range(0, X.shape[0]) : y_pred[i] = f(x[i])
+        
+        return y_pred
     
     def to_string(self) :
         return_string = "Model not initialized"
         if self.expression is not None :
-            return_string = "Model:" + str(self.target_variable) + " = "
+            return_string = "Model: " + str(self.target_variable) + " = "
             return_string += str(self.expression)
-            return_string += "\nVariables:" + str(self.variables)
+            return_string += "\nVariables: " + str(self.variables)
 
             if self.parameter_values is not None :
-                return_string += "\nParameters:" + str(self.parameter_values)
-                return_string += "\nTrained model:" + str(self.target_variable) + " = "
+                return_string += "\nParameters: " + str(self.parameter_values)
+                return_string += "\nTrained model: " + str(self.target_variable) + " = "
                 return_string += str(self.expression.subs(self.parameter_values))
             else :
-                return_string += "\nParameters:" + str(self.parameters)
+                return_string += "\nParameters: " + str(self.parameters)
             
             return(return_string)
         
@@ -200,19 +244,45 @@ class HumanRegression :
 
 if __name__ == "__main__" :
     
-    print("Creating data...")
-    X = np.linspace(0, 1, 100).reshape((100,1))
-    y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X])
+    # example with 1-dimensional features, y=f(x)
+    if True :
+        print("Creating data...")
+        X = np.linspace(0, 1, 100).reshape((100,1))
+        y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X])
+        
+        print("Testing HumanRegression...")
+        
+        model_string = "a_0 + a_1*x + a_2*x**2 + a_3*x**3"
+        vtf =  {"x": 0}
+        
+        regressor = HumanRegression(model_string, map_variables_to_features=vtf, target_variable="y")
+        print(regressor)
+        
+        print("Fitting data...")
+        regressor.fit(X, y)
+        print(regressor)
+        
+        print("Testing model on unseen data...")
+        X_test = np.linspace(1, 2, 10).reshape((10,1))
+        y_test = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X_test])
+        y_test_pred = regressor.predict(X_test)
+        
+        print("Mean squared error for unseen data:", mean_squared_error(y_test, y_test_pred))
+        
+        # let's plot a few things!
+        import matplotlib.pyplot as plt
+        plt.plot(X[:,0], y, 'gx', label="Training data")
+        plt.plot(X_test[:,0], y_test, 'rx', label="Test data")
+        X_total = np.concatenate((X, X_test))
+        plt.plot(X_total[:,0], regressor.predict(X_total)[:,0], 'b-', label="Model")
+        plt.legend(loc='best')
+        plt.show()
+        
     
-    print("Testing HumanRegression...")
+    # example with 3-dimensional features (x, y, z) but only two are used (x, z)
+    X = np.zeros((100,3))
+    X[:,0] = np.linspace(0, 1, 100)
+    X[:,1] = np.random.rand(100)
+    X[:,2] = np.linspace(0, 1, 100)
+    print(X)
     
-    model_string = "a_0 + a_1*x + a_2*x**2 + a_3*x**3"
-    vtf =  {"x": 0}
-    
-    regressor = HumanRegression(model_string, map_variables_to_features=vtf, target_variable="y")
-    print(regressor)
-    
-    print("Fitting data...")
-    regressor.fit(X, y)
-    
-    print(regressor)
