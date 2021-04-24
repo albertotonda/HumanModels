@@ -245,7 +245,7 @@ class HumanRegression :
 if __name__ == "__main__" :
     
     # example with 1-dimensional features, y=f(x)
-    if True :
+    if False :
         print("Creating data...")
         X = np.linspace(0, 1, 100).reshape((100,1))
         y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X])
@@ -280,9 +280,23 @@ if __name__ == "__main__" :
         
     
     # example with 3-dimensional features (x, y, z) but only two are used (x, z)
+    print("Creating data...")
     X = np.zeros((100,3))
     X[:,0] = np.linspace(0, 1, 100)
     X[:,1] = np.random.rand(100)
     X[:,2] = np.linspace(0, 1, 100)
     print(X)
     
+    y = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X])
+    print(y)
+    
+    print("Testing HumanRegression...")
+    model_string = "a_0 + a_1*x + a_2*y + a_3*x**2 + a_4*y**2"
+    vtf = {"x": 0, "y": 2}
+    
+    regressor = HumanRegression(model_string, map_variables_to_features=vtf, target_variable="z")
+    print(regressor)
+    
+    print("Fitting data...")
+    regressor.fit(X, y)
+    print(regressor)
