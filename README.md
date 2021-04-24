@@ -5,3 +5,5 @@ scikit-learn compatible models for regression and (maybe) classification. The cl
 ## Depends on
 scikit-learn
 sympy
+scipy
+cma
