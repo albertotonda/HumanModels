@@ -18,13 +18,13 @@ class HumanRegression :
     
     expression = None
     target_variable = None
-    features_to_variables = None
+    variables_to_features = None
     variables = None
     parameters = None
     features = None
     parameter_values = None
     
-    def __init__(self, equation_string, map_features_to_variables, target_variable=None) :
+    def __init__(self, equation_string, map_variables_to_features, target_variable=None) :
         """
         Builder for the class.
         
@@ -76,18 +76,19 @@ class HumanRegression :
         self.expression = sympy_parser.parse_expr(expression)
         
         # now, let's check the dictionary containing the association feature names -> variables
-        if map_features_to_variables is None or len(map_features_to_variables) == 0 :
-            raise ValueError("map_features_to_variables dictionary cannot be empty")
+        if map_variables_to_features is None or len(map_variables_to_features) == 0 :
+            raise ValueError("map_variables_to_features dictionary cannot be empty")
         
-        self.features_to_variables = dict(map_features_to_variables)
+        self.variables_to_features = dict(map_variables_to_features)
         # let's get the list of the variables
-        self.variables = sorted(list(self.features_to_variables.values()))
-        # and the list of the features
-        self.features = sorted(list(self.features_to_variables.keys()))
+        self.variables = sorted(list(self.variables_to_features.keys()))
+        # and the list of the features, in the same order as the alphabetically sorted variables
+        self.features = [self.variables_to_features[v] for v in self.variables]
         
         # now, the *parameters* of the model are Symbols detected by sympy that are not associated to
         # any *variable*; so, let's first get a list of all Symbols (as strings)
         all_symbols = [str(s) for s in self.expression.atoms(Symbol)]
+        # and then select those who are not variables
         self.parameters = sorted([s for s in all_symbols if s not in self.variables])
 
         return
@@ -127,7 +128,7 @@ class HumanRegression :
         
         # we first define the function to be optimized; in order to have maximum
         # efficiency, we will need to use sympy's lambdify'
-        def error_function(parameter_values, expression, variables, parameter_names, y) :
+        def error_function(parameter_values, expression, variables, parameter_names, features, y) :
             
             # replace parameters with their values, assuming they appear alphabetically
             replacement_dictionary = {parameter_names[i] : parameter_values[i] for i in range(0, len(parameter_names))}
@@ -138,21 +139,35 @@ class HumanRegression :
             print("Lambdifying expression...")
             f = lambdify(variables, local_expression, 'numpy')
             
+            # prepare a subset of the dataset, considering only the features connected to the
+            # variables in the model
+            x = X[:,features]
+            
             # run the lambdified function on X, obtaining y_pred
+            # now, there are two cases: if the input of the function is more than 1-dimensional,
+            # it should be flattened as positional arguments, using f(*X[i]);
+            # but if it is 1-dimensional, this will raise an exception, so we need to test this
             print("Testing the function")
             y_pred = np.zeros(y.shape)
-            for i in range(0, X.shape[0]) : y_pred[i] = f(X[i])
+            if len(features) != 1 :
+                for i in range(0, X.shape[0]) : y_pred[i] = f(*X[i])
+            else :
+                for i in range(0, X.shape[0]) : y_pred[i] = f(X[i])
             print(y_pred)
             
             print("Computing mean squared error")
-            return mean_squared_error(y, y_pred)
+            mse = mean_squared_error(y, y_pred)
+            print("mse:", mse)
+            return mse
         
         # launch minimization
-        optimal_parameters = minimize(error_function, 
+        optimization_result = minimize(error_function, 
                                       np.zeros(len(self.parameters)), 
-                                      args=(self.expression, self.variables, self.parameters, y))
+                                      args=(self.expression, self.variables, 
+                                            self.parameters, self.features, y))
         
-        self.parameter_values = optimal_parameters
+        self.parameter_values = { self.parameters[i]: optimization_result.x[i] 
+                                 for i in range(0, len(self.parameters)) }
         
         # TODO return MSE?
         return
@@ -161,10 +176,19 @@ class HumanRegression :
         return
     
     def to_string(self) :
+        return_string = "Model not initialized"
         if self.expression is not None :
-            return_string = str(self.target_variable) + " = " + str(self.expression)
+            return_string = "Model:" + str(self.target_variable) + " = "
+            return_string += str(self.expression)
             return_string += "\nVariables:" + str(self.variables)
-            return_string += "\nParameters:" + str(self.parameters)
+
+            if self.parameter_values is not None :
+                return_string += "\nParameters:" + str(self.parameter_values)
+                return_string += "\nTrained model:" + str(self.target_variable) + " = "
+                return_string += str(self.expression.subs(self.parameter_values))
+            else :
+                return_string += "\nParameters:" + str(self.parameters)
+            
             return(return_string)
         
         else :
@@ -177,16 +201,18 @@ class HumanRegression :
 if __name__ == "__main__" :
     
     print("Creating data...")
-    X = np.linspace(0, 1, 100)
+    X = np.linspace(0, 1, 100).reshape((100,1))
     y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X])
     
     print("Testing HumanRegression...")
     
     model_string = "a_0 + a_1*x + a_2*x**2 + a_3*x**3"
-    ftv = {"x" : "x"}
+    vtf =  {"x": 0}
     
-    regressor = HumanRegression(model_string, map_features_to_variables=ftv, target_variable="y")
-    print(regressor.to_string())
+    regressor = HumanRegression(model_string, map_variables_to_features=vtf, target_variable="y")
+    print(regressor)
     
     print("Fitting data...")
     regressor.fit(X, y)
+    
+    print(regressor)
