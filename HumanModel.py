@@ -19,19 +19,20 @@ class HumanClassifier :
     
     expressions = None
     classes = None
+    default_class = None
     variables = None
     features = None
     parameters = None
     parameter_values = None
     
-    def __init__(self, logic_expression, map_variables_to_features, target_class=None) :
+    def __init__(self, logic_expression, map_variables_to_features) :
         """
         Builder for the class.
 
         Parameters
         ----------
-        logic_expression : str or list of str
-            A string (or list of strings).
+        logic_expression : str or dictionary {int: string}
+            A string (or dictionary of strings).
             
         map_variables_to_features : dict
             Dictionary containing the mapping between variables and features indexes 
@@ -52,48 +53,47 @@ class HumanClassifier :
         if isinstance(logic_expression, str) :
             
             # one single logic expression, that will be assumed to return
-            # an integer value for each class
-            self.expressions = list()
-            self.expressions.append(sympy_parser.parse_expr(logic_expression))
+            # True/False for sample belonging to Class 0
+            self.expressions = dict()
+            self.expressions[0] = sympy_parser.parse_expr(logic_expression)
+            # if a sample does *not* belong to Class 0, it will be associated
+            # to the 'default_class', here set as 1 (this is assumed to be a
+            # binary classification problem)
+            self.default_class = 1
             
-        elif isinstance(logic_expression, list) :
+        elif isinstance(logic_expression, dict) :
             
-            # one logic expression per class
-            if isinstance(target_class, list) and len(logic_expression) == len(target_class):
-                
-                # associate each string in the list to a sympy expression
-                self.expressions = [sympy_parser.parse_expr(s) for s in logic_expression]
-                
-                # TODO other checks, to be eventually performed
-                # - is target_class a list of int?
-                # - are elements in target_class numbered 0..N and unique?
-                
-            else :
-                raise ValueError("Mismatch between number of logic expressions provided \
-                                 as logic_expression and number of classes in target_class")
+            # create internal dictionary of sympy expressions; if one expression
+            # is empty, the class associated to it will be considered as the
+            # "default" (e.g., item associated to it if all other expressions are False)
+            self.default_class = -1
+            self.expressions = dict()
+            for c, e in logic_expression.items() :
+                if e != "" :
+                    self.expressions[c] = sympy_parser.parse_expr(e)
+                else :
+                    if self.default_class == -1 :
+                        self.default_class = c
+                    else :
+                        raise ValueError("Two or more logical expressions associated to different classes are empty. Only one expression can be empty.")
         
         # let's check for the presence of variables and parameters in each expression;
         # also take into account he mapping of variables to feature indexes
-        self.variables = []
-        self.parameters = []
-        self.parameter_values = []
-        self.features = []
+        self.variables = dict()
+        self.parameters = dict()
+        self.parameter_values = dict()
+        self.features = dict()
         
-        for e in self.expressions :
+        for c, e in self.expressions.items() :
             all_symbols = [str(s) for s in e.atoms(Symbol)]
             v = sorted([s for s in all_symbols if s in map_variables_to_features.keys()])
             p = sorted([s for s in all_symbols if s not in map_variables_to_features.keys()])
             f = [map_variables_to_features[var] for var in v]
             
-            self.variables.append(v)
-            self.parameters.append(p)
-            self.parameter_values.append([]) # parameters have non-set values
-            self.features.append(f)
-        
-        if target_class is None :
-            self.classes = [i for i in range(0, len(self.expressions))]
-        else :
-            self.classes = target_classes # TODO check that input is correct
+            self.variables[c] = v
+            self.parameters[c] = p
+            self.parameter_values[c] = [] # parameters have non-set values
+            self.features[c] = f
             
         return
     
@@ -102,6 +102,9 @@ class HumanClassifier :
         This method at the moment exists just for coherence with the scikit-learn
         classifier interface. HumanClassifier currently does not include a training
         step for the parameters of the logic expressions.
+        
+        Right now, the only optimization algorithm that could potentially work
+        is an evolutionary algorithm. TODO: using logistic function over non-linear models?
 
         Parameters
         ----------
@@ -138,72 +141,75 @@ class HumanClassifier :
 
         """
         # if there are parameters, check that each parameter does have a value
-        for i in range(0, len(self.expressions)) :
-            if len(self.parameters[i]) > 0 :
-                if len(self.parameters[i]) != len(self.parameter_values[i]) :
+        for c, e in self.expressions.items() :
+            if len(self.parameters[c]) > 0 :
+                if len(self.parameters[c]) != len(self.parameter_values[c]) :
                     raise ValueError("Symbolic parameters with unknown values in expression \"%s\": %s" 
-                                     % (self.expressions[i], self.parameters_to_string(i)))
+                                     % (self.expressions[c], self.parameters_to_string(c)))
         
-        # let's lambdify each expression in the list, getting a list of function pointers
-        functions = [ lambdify(self.variables[i], self.expressions[i], 'numpy') 
-                     for i in range(0, len(self.expressions)) ]
+        # let's lambdify each expression in the list, getting a dictionary of function pointers
+        functions = { c : lambdify(self.variables[c], e, 'numpy') for c, e in self.expressions.items() }
         
         # now we can get predictions! one set of predictions for each expression
-        predictions = np.zeros((len(functions), X.shape[0]), dtype=bool)
+        predictions = { c : np.zeros(X.shape[0], dtype=bool) for c in self.expressions.keys() }
         
-        for i in range(0, len(functions)) :
-            f = functions[i]
-            x = X[:,self.features[i]]
+        for c, f in functions.items() :
+            x = X[:,self.features[c]]
             # we flatten the arguments of the function only if there is more than one
-            predictions[i] = f(*[x[:,f] for f in range(0, x.shape[1])])
+            predictions[c] = f(*[x[:,f] for f in range(0, x.shape[1])])
             
         # and now, we need to aggregate all predictions
         y_pred = np.zeros(X.shape[0], dtype=int)
         for s in range(0, X.shape[0]) :
             # this is an array of size equal to the size of the classes
             # if one of the elements is set to True, then we use that index
-            # to predict class label; however if there is a disagreement, we will
-            # need to solve it
-            p = predictions[:,s]
-            indexes = np.where(p == True)[0] # we only take a look at the first axis
+            # to predict class label; if all values are False, we assign the default
+            # class label; however, if there is a disagreement (e.g. more than one value
+            # set to True), we will need to solve it
+            classes = [c for c in self.expressions.keys() if predictions[c][s] == True]
             
-            if len(indexes) == 0 and len(self.expressions) == 1 :
-                # easy case: there is only one expression (binary classification)
-                # and the outcome if 'False', it will be considered Class 1
-                y_pred[s] = 1
+            if len(classes) == 0 and self.default_class is not None :
+                # easy case: all expressions returned 'False', so we set the value
+                # to the default class
+                y_pred[s] = self.default_class
                 
-            elif len(indexes) == 1 :
+            elif len(classes) == 1 :
                 # easy case: only one value in the array is 'True', so we
                 # assign a label equal to the index of the sample
-                y_pred[s] = indexes[0]
+                y_pred[s] = classes[0]
                 
             else :
                 # there's a conflict: multiple expressions returned 'True'
-                # (or none did); for the moment, assign class label '-1'
+                # (or none did, and the default class label is not set); 
+                # for the moment, assign class label '-1'
+                raise Warning("For sample #%d, no class expression set to 'True', and no default class specified" % s)
                 y_pred[s] = -1
         
         return y_pred
     
     def to_string(self) :
         return_string = ""
-        for i in range(0, len(self.expressions)) :
-            return_string += "Class %d: " % self.classes[i]
-            return_string += str(self.expressions[i])
-            return_string += "; variables:" + self.variables_to_string(i)
-            return_string += "; parameters:" + self.parameters_to_string(i)
+        for c, e in self.expressions.items() :
+            return_string += "Class %d: " % c
+            return_string += str(e)
+            return_string += "; variables:" + self.variables_to_string(c)
+            return_string += "; parameters:" + self.parameters_to_string(c)
             return_string += "\n"
             
-        return return_string
+        if self.default_class is not None :
+            return_string += "Default class (if all other expressions are False): %d\n" % self.default_class
+            
+        return return_string[:-1]
     
-    def parameters_to_string(self, index) :
+    def parameters_to_string(self, c) :
         
         return_string = ""
-        for p in range(0, len(self.parameters[index])) :
-            return_string += self.parameters[index][p] + "="
-            if p >= len(self.parameter_values[index]) :
+        for p in range(0, len(self.parameters[c])) :
+            return_string += self.parameters[c][p] + "="
+            if p >= len(self.parameter_values[c]) :
                 return_string += "?"
             else :
-                return_string += str(self.parameter_values[index][p])
+                return_string += str(self.parameter_values[c][p])
             return_string += " "
         
         if return_string == "" :
@@ -213,14 +219,14 @@ class HumanClassifier :
         
         return return_string
     
-    def variables_to_string(self, index) :
+    def variables_to_string(self, c) :
         return_string = ""
-        for v in range(0, len(self.variables[index])) :
-            return_string += self.variables[index][v] + " -> "
-            if v >= len(self.features[index]) :
+        for v in range(0, len(self.variables[c])) :
+            return_string += self.variables[c][v] + " -> "
+            if v >= len(self.features[c]) :
                 return_string += "?"
             else :
-                return_string += str(self.features[index][v])
+                return_string += str(self.features[c][v])
             return_string += " "
             
         return return_string[:-1]
@@ -484,8 +490,36 @@ class HumanRegressor :
 
 if __name__ == "__main__" :
     
-    # example of HumanClassifier with an ad-hoc problem (binary Iris)
+    # example of HumanClassifier, with Iris all-classes
     if True :
+        from sklearn import datasets
+        X, y = datasets.load_iris(return_X_y=True)
+        
+        # this is just for me, to identify the best class for this problem
+        import matplotlib.pyplot as plt
+        for c in np.unique(y) :
+            plt.plot(X[y==c][:,0], X[y==c][:,3], 'o', label="Class %d" % c)
+        plt.legend(loc='best')
+        
+        # rules for each class
+        rules = {0: "sw -0.8*sl > -1.2",
+                 2: "pw > 1.5",
+                 1: ""} # this means that a sample will be associated to class 1 if both
+                        # the expression for class 0 and 2 are 'False'
+        
+        # map variables to features
+        map_variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
+        
+        classifier = HumanClassifier(rules, map_variables_to_features)
+        print(classifier)
+        
+        y_pred = classifier.predict(X)
+        from sklearn.metrics import accuracy_score
+        accuracy = accuracy_score(y, y_pred)
+        print("Classification accuracy: %.4f" % accuracy)
+    
+    # example of HumanClassifier with an ad-hoc problem (binary Iris)
+    if False :
         from sklearn import datasets
         X, y = datasets.load_iris(return_X_y=True)
         
@@ -497,9 +531,9 @@ if __name__ == "__main__" :
         # I also draw a line, to find a good point
         x_l = np.linspace(4.0, 7.0, 100)
         y_l = [0.8 * x_ -1.2 for x_ in x_l]
-        #plt.plot(x_l, y_l, 'r--', label="Tentative decision boundary" )
-        plt.vlines(6.0, 2.7, 4.5, 'r', linestyles='--')
-        plt.hlines(2.7, 4.0, 6.0, 'r', linestyles='--')
+        plt.plot(x_l, y_l, 'r--', label="Tentative decision boundary" )
+        #plt.vlines(6.0, 2.7, 4.5, 'r', linestyles='--')
+        #plt.hlines(2.7, 4.0, 6.0, 'r', linestyles='--')
         plt.legend(loc='best')
         plt.show()
         
