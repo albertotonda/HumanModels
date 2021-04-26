@@ -6,6 +6,7 @@ Created on Fri Apr 23 21:06:03 2021
 """
 import cma
 import numpy as np
+import warnings
 
 from scipy.optimize import minimize
 
@@ -13,7 +14,7 @@ from sympy import lambdify
 from sympy.parsing import sympy_parser
 from sympy.core.symbol import Symbol
 
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import accuracy_score, mean_squared_error
 
 class HumanClassifier :
     
@@ -97,31 +98,79 @@ class HumanClassifier :
             
         return
     
-    def fit(self, X, y) :
-        """
-        This method at the moment exists just for coherence with the scikit-learn
-        classifier interface. HumanClassifier currently does not include a training
-        step for the parameters of the logic expressions.
+    def fit(self, X, y, optimizer="cma", optimizer_options=None) :
+
+        warnings.warn(".fit method currently not training internal parameters of the HumanClassifier, assuming that the logic expressions provided are working as they are.")
+                      
+        # first, let's collect the list of parameters to be optimized
+        optimizable_parameters = [p for c in self.expressions.keys() for p in self.parameters[c]]
+        optimizable_parameters = sorted(list(set(optimizable_parameters)))
+        print("Optimizable parameters:", optimizable_parameters)
         
-        Right now, the only optimization algorithm that could potentially work
-        is an evolutionary algorithm. TODO: using logistic function over non-linear models?
-
-        Parameters
-        ----------
-        X : array, shape(n_samples, n_features)
-            Training data
-       
-        y : array, shape(n_samples, 1)
-            Training class labels for the target feature/variable
-
-        Returns
-        -------
-        None.
-
-        """
-        raise Warning(".fit method currently not training internal parameters \
-                      of the HumanClassifier, assuming that the logic expressions \
-                      provided are working as they are.")
+        # we now create the error function
+        # TODO it might be maybe improved with logistic stuff and class probabilities
+        # TODO also penalize '-1' labels
+        def error_function(parameter_values, parameter_names, X, y) :
+            
+            # debug
+            print(parameter_names, parameter_values)
+            
+            # replacement dictionary for parameters
+            replacement_dictionary = { parameter_names[i] : parameter_values[i] for i in range(0, len(parameter_names)) }
+            
+            # let's create a dictionary of lambdified functions, after replacing parameters
+            funcs = { c: lambdify(self.variables[c], self.expressions[c].subs(replacement_dictionary), "numpy") 
+                     for c in self.expressions.keys()}
+            
+            # dictionary of outputs for each lambdified function
+            y_pred = np.zeros(y.shape)
+            penalty = 0
+            
+            # let's go over the samples in X
+            for s in range(0, X.shape[0]) :
+                classes = []
+                for c in self.expressions.keys() :
+                    print("\tSample #%d, class %d: %s" % (s, c, str(X[s,self.features[c]])))
+                    prediction = funcs[c](*X[s,self.features[c]])
+                    if prediction == True : classes.append(c)
+                
+                if len(classes) == 1 :
+                    y_pred[s] = classes[0]
+                elif len(classes) > 1 :
+                    y_pred[s] = -1
+                    penalty += 1
+                elif len(classes) == 0 :
+                    if self.default_class is not None :
+                        y_pred[s] = self.default_class
+                    else :
+                        y_pred[s] = -1
+                        penalty += 1
+            
+            return (1.0 - accuracy_score(y, y_pred)) #- 0.01 * (penalty/float(y.shape[0]))
+        
+        # and now that the error function is defined, we can optimize!
+        if optimizer_options is None : optimizer_options = dict()
+        #if verbose == False : 
+        optimizer_options['verbose'] = 1 # -9 is very quiet
+        #optimizer_options['popsize'] = 1000
+        
+        #optimization_result = minimize(error_function, 
+        #                                  np.zeros(len(optimizable_parameters)), 
+        #                                  args=(optimizable_parameters, X, y))
+        #
+        #optimized_parameters = { optimizable_parameters[i] : optimization_result.x[i] 
+        #                        for i in range(0, len(optimizable_parameters)) }
+        
+        es = cma.CMAEvolutionStrategy(np.zeros(len(optimizable_parameters)), 1.0, optimizer_options)
+        es.optimize(error_function, args=(optimizable_parameters, X, y))
+        optimized_parameters = { optimizable_parameters[i] : es.result[0][i] 
+                                for i in range(0, len(optimizable_parameters)) }
+        
+        # store the values for the optimized parameters
+        for c in self.expressions.keys() :
+            self.parameter_values[c] = [] # reset values
+            for i in range(0, len(self.parameters[c])) :
+                self.parameter_values[c].append(optimized_parameters[self.parameters[c][i]])
         
         return
     
@@ -144,7 +193,7 @@ class HumanClassifier :
         for c, e in self.expressions.items() :
             if len(self.parameters[c]) > 0 :
                 if len(self.parameters[c]) != len(self.parameter_values[c]) :
-                    raise ValueError("Symbolic parameters with unknown values in expression \"%s\": %s" 
+                    raise ValueError("Symbolic parameters with unknown values in expression \"%s\": %s; run .fit to optimize parameters' values" 
                                      % (self.expressions[c], self.parameters_to_string(c)))
         
         # let's lambdify each expression in the list, getting a dictionary of function pointers
@@ -517,6 +566,22 @@ if __name__ == "__main__" :
         from sklearn.metrics import accuracy_score
         accuracy = accuracy_score(y, y_pred)
         print("Classification accuracy: %.4f" % accuracy)
+        
+        # and now, let's see what happens with rules that have parameters
+        print("\nAnd now, let's try to optimize the parameters!")
+        # to be optimized
+        # rules for each class
+        rules = {0: "sw + p_0*sl > p_1",
+                 2: "pw > p_2",
+                 1: ""} # this means that a sample will be associated to class 1 if both
+                        # the expression for class 0 and 2 are 'False'
+        map_variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
+        classifier = HumanClassifier(rules, map_variables_to_features)
+        print(classifier)
+        classifier.fit(X, y)
+        
+        y_pred = classifier.predict(X)
+        
     
     # example of HumanClassifier with an ad-hoc problem (binary Iris)
     if False :
