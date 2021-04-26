@@ -497,7 +497,9 @@ if __name__ == "__main__" :
         # I also draw a line, to find a good point
         x_l = np.linspace(4.0, 7.0, 100)
         y_l = [0.8 * x_ -1.2 for x_ in x_l]
-        plt.plot(x_l, y_l, 'r--', label="Tentative decision boundary" )
+        #plt.plot(x_l, y_l, 'r--', label="Tentative decision boundary" )
+        plt.vlines(6.0, 2.7, 4.5, 'r', linestyles='--')
+        plt.hlines(2.7, 4.0, 6.0, 'r', linestyles='--')
         plt.legend(loc='best')
         plt.show()
         
