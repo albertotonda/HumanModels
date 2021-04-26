@@ -4,6 +4,7 @@ Created on Fri Apr 23 21:06:03 2021
 
 @author: Alberto Tonda
 """
+import cma
 import numpy as np
 
 from scipy.optimize import minimize
@@ -14,7 +15,118 @@ from sympy.core.symbol import Symbol
 
 from sklearn.metrics import mean_squared_error
 
-class HumanRegression :
+class HumanClassifier :
+    
+    expressions = None
+    target_classes = None
+    variables = None
+    features = None
+    parameters = None
+    
+    def __init__(self, logic_expression, map_variables_to_features, target_class=None) :
+        """
+        Builder for the class.
+
+        Parameters
+        ----------
+        logic_expression : str or list of str
+            A string (or list of strings).
+            
+        map_variables_to_features : dict
+            Dictionary containing the mapping between variables and features indexes 
+            (in datasets).
+            
+        target_class : list of int, optional
+            If several logic expressions are specified, a list of target classes
+            must be passed as an argument, in order for HumanClassification to behave as a
+            one-vs-all classifier. The default is None.
+
+        Returns
+        -------
+        None.
+
+        """
+        # store the names of the variables, in alphabetical order
+        self.variables = sorted(map_variables_to_features.keys())
+        
+        # we start by performing a few checks on the input
+        if isinstance(logic_expression, str) :
+            
+            # one single logic expression, that will be assumed to return
+            # an integer value for each class
+            self.expressions = list()
+            self.expressions.append(sympy_parser.parse_expr(logic_expression))
+            
+        elif isinstance(logic_expression, list) :
+            
+            # one logic expression per class
+            if isinstance(target_class, list) and len(logic_expression) == len(target_class):
+                
+                # associate each string in the list to a sympy expression
+                self.expressions = [sympy_parser.parse_expr(s) for s in logic_expression]
+                
+                # TODO other checks, to be eventually performed
+                # - is target_class a list of int?
+                # - are elements in target_class numbered 0..N and unique?
+                
+            else :
+                raise ValueError("Mismatch between number of logic expressions provided \
+                                 as logic_expression and number of classes in target_class")
+        
+        # let's check for the presence 
+            
+        return
+    
+    def fit(self, X, y) :
+        """
+        This method at the moment exists just for coherence with the scikit-learn
+        classifier interface. HumanClassifier currently does not include a training
+        step for the parameters of the logic expressions.
+
+        Parameters
+        ----------
+        X : array, shape(n_samples, n_features)
+            Training data
+       
+        y : array, shape(n_samples, 1)
+            Training class labels for the target feature/variable
+
+        Returns
+        -------
+        None.
+
+        """
+        raise Warning(".fit method currently not training internal parameters \
+                      of the HumanClassifier, assuming that the logic expressions \
+                      provided are working as they are.")
+        
+        return
+    
+    def predict(self, X) :
+        """
+        Predict the class labels for each sample in X
+
+        Parameters
+        ----------
+        X : array, shape(n_samples, n_features)
+            Array containing samples, for which class labels are going to be predicted.
+
+        Returns
+        -------
+        C : array, shape(n_samples).
+            Prediction vector, with a class label for each sample.
+
+        """
+        
+        # let's lambdify each expression in the list, getting a list of function pointers
+        functions = [ lambdify(self.variables, e, 'numpy') for e in self.expressions ]
+        
+        # 
+            
+        
+        return y_pred
+
+class HumanRegressor :
     
     expression = None
     target_variable = None
@@ -94,16 +206,16 @@ class HumanRegression :
         return
     
     
-    def fit(self, X, y, map_features_to_variables=None, optimizer_options=None, optimizer="bfgs") :
+    def fit(self, X, y, map_features_to_variables=None, optimizer_options=None, optimizer="bfgs", verbose=False) :
         """
         Fits the internal model to the data, using features in X and known values in y.
         
         Parameters
         ----------
-        X : ndarray of shape S, N
+        X : array, shape(n_samples, n_features)
             Training data
        
-        y : ndarray of shape S, 1
+        y : array, shape(n_samples, 1)
             Training values for the target feature/variable
         
         map_features_to_variables : dict, default=None
@@ -119,7 +231,11 @@ class HumanRegression :
                 Much slower, but generally more effective than "bfgs".
         
         optimizer_options : string, default=None
-            Options that can be passed to the optimization algorithm.
+            Options that can be passed to the optimization algorithm. Shape and type depend on
+            the choice made for 'optimizer'.
+            
+        verbose : bool, default=False
+            If True, prints internal output to screen.
         
         Returns
         -------
@@ -133,10 +249,10 @@ class HumanRegression :
             # replace parameters with their values, assuming they appear alphabetically
             replacement_dictionary = {parameter_names[i] : parameter_values[i] for i in range(0, len(parameter_names))}
             local_expression = expression.subs(replacement_dictionary)
-            print("Expression after replacing parameters:", local_expression)
+            if verbose : print("Expression after replacing parameters:", local_expression)
             
             # lambdify the expression, now only variables should be left as variables
-            print("Lambdifying expression...")
+            if verbose : print("Lambdifying expression...")
             f = lambdify(variables, local_expression, 'numpy')
             
             # prepare a subset of the dataset, considering only the features connected to the
@@ -147,34 +263,54 @@ class HumanRegression :
             # now, there are two cases: if the input of the function is more than 1-dimensional,
             # it should be flattened as positional arguments, using f(*X[i]);
             # but if it is 1-dimensional, this will raise an exception, so we need to test this
-            print("Testing the function")
+            if verbose : print("Testing the function")
             y_pred = np.zeros(y.shape)
             if len(features) != 1 :
                 for i in range(0, X.shape[0]) : y_pred[i] = f(*x[i])
             else :
                 for i in range(0, X.shape[0]) : y_pred[i] = f(x[i])
-            print(y_pred)
+            if verbose : print(y_pred)
             
-            print("Computing mean squared error")
+            if verbose : print("Computing mean squared error")
             mse = mean_squared_error(y, y_pred)
-            print("mse:", mse)
+            if verbose : print("mse:", mse)
             return mse
         
-        # launch minimization
-        optimization_result = minimize(error_function, 
-                                      np.zeros(len(self.parameters)), 
-                                      args=(self.expression, self.variables, 
-                                            self.parameters, self.features, y))
+        # check the optimizer chosen by the user, and launch minimization
+        optimized_parameters = None
+        if optimizer == 'bfgs' :
+            optimization_result = minimize(error_function, 
+                                          np.zeros(len(self.parameters)), 
+                                          args=(self.expression, self.variables, 
+                                                self.parameters, self.features, y))
+            optimized_parameters = optimization_result.x
+            
+        elif optimizer == 'cma' :
+            if optimizer_options is None : optimizer_options = dict()
+            if verbose == False : optimizer_options['verbose'] = -9 # very quiet
+            
+            es = cma.CMAEvolutionStrategy(np.zeros(len(self.parameters)), 1.0, optimizer_options)
+            es.optimize(error_function, 
+                        args=(self.expression, self.variables, 
+                        self.parameters, self.features, y))
+            optimized_parameters = es.result[0]
+            
+        else :
+            raise ValueError("String \"%s\" is not a valid value for option \
+                             \"optimizer\". Check the documentation for more \
+                                 information." % optimizer)
+            
         
-        self.parameter_values = { self.parameters[i]: optimization_result.x[i] 
+        self.parameter_values = { self.parameters[i]: optimized_parameters[i] 
                                  for i in range(0, len(self.parameters)) }
         
         # TODO return MSE?
         return
     
-    def predict(self, X, map_variables_to_features=None) :
+    def predict(self, X, map_variables_to_features=None, verbose=False) :
         """
-        Once the model is trained, this function can be used to predict unseen values.
+        Once the model is trained, this function can be used to predict the value
+        of the target feature for samples in X.
         It will fail if the model has not been trained (TODO is this the default scikit-learn behavior?)
 
         Parameters
@@ -246,7 +382,12 @@ class HumanRegression :
 
 if __name__ == "__main__" :
     
-    # example with 1-dimensional features, y=f(x)
+    # example of HumanClassifier with an ad-hoc problem (binary Iris)
+    from sklearn import datasets
+    X, y = datasets.load_iris(return_X_y=True)
+    
+    
+    # example of HumanRegressor with 1-dimensional features, y=f(x)
     if True :
         print("Creating data...")
         X = np.linspace(0, 1, 100).reshape((100,1))
@@ -257,11 +398,11 @@ if __name__ == "__main__" :
         model_string = "a_0 + a_1*x + a_2*x**2 + a_3*x**3"
         vtf =  {"x": 0}
         
-        regressor = HumanRegression(model_string, map_variables_to_features=vtf, target_variable="y")
+        regressor = HumanRegressor(model_string, map_variables_to_features=vtf, target_variable="y")
         print(regressor)
         
         print("Fitting data...")
-        regressor.fit(X, y)
+        regressor.fit(X, y, optimizer='cma')
         print(regressor)
         
         print("Testing model on unseen data...")
@@ -276,12 +417,12 @@ if __name__ == "__main__" :
         plt.plot(X[:,0], y, 'gx', label="Training data")
         plt.plot(X_test[:,0], y_test, 'rx', label="Test data")
         X_total = np.concatenate((X, X_test))
-        plt.plot(X_total[:,0], regressor.predict(X_total)[:,0], 'b-', label="Model")
+        plt.plot(X_total[:,0], regressor.predict(X_total), 'b-', label="Model")
         plt.legend(loc='best')
         plt.show()
         
     
-    # example with 3-dimensional features (x, y, z) but only two are used (x, z)
+    # example of HumanRegressor with 3-dimensional features (x, y, z) but only two are used (x, z)
     if False :
         print("Creating data...")
         X = np.zeros((100,3))
@@ -297,7 +438,7 @@ if __name__ == "__main__" :
         model_string = "a_0 + a_1*x + a_2*y + a_3*x**2 + a_4*y**2"
         vtf = {"x": 0, "y": 2}
         
-        regressor = HumanRegression(model_string, map_variables_to_features=vtf, target_variable="z")
+        regressor = HumanRegressor(model_string, map_variables_to_features=vtf, target_variable="z")
         print(regressor)
         
         print("Fitting data...")
