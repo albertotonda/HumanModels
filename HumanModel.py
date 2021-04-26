@@ -18,10 +18,11 @@ from sklearn.metrics import mean_squared_error
 class HumanClassifier :
     
     expressions = None
-    target_classes = None
+    classes = None
     variables = None
     features = None
     parameters = None
+    parameter_values = None
     
     def __init__(self, logic_expression, map_variables_to_features, target_class=None) :
         """
@@ -46,8 +47,6 @@ class HumanClassifier :
         None.
 
         """
-        # store the names of the variables, in alphabetical order
-        self.variables = sorted(map_variables_to_features.keys())
         
         # we start by performing a few checks on the input
         if isinstance(logic_expression, str) :
@@ -73,7 +72,28 @@ class HumanClassifier :
                 raise ValueError("Mismatch between number of logic expressions provided \
                                  as logic_expression and number of classes in target_class")
         
-        # let's check for the presence 
+        # let's check for the presence of variables and parameters in each expression;
+        # also take into account he mapping of variables to feature indexes
+        self.variables = []
+        self.parameters = []
+        self.parameter_values = []
+        self.features = []
+        
+        for e in self.expressions :
+            all_symbols = [str(s) for s in e.atoms(Symbol)]
+            v = sorted([s for s in all_symbols if s in map_variables_to_features.keys()])
+            p = sorted([s for s in all_symbols if s not in map_variables_to_features.keys()])
+            f = [map_variables_to_features[var] for var in v]
+            
+            self.variables.append(v)
+            self.parameters.append(p)
+            self.parameter_values.append([]) # parameters have non-set values
+            self.features.append(f)
+        
+        if target_class is None :
+            self.classes = [i for i in range(0, len(self.expressions))]
+        else :
+            self.classes = target_classes # TODO check that input is correct
             
         return
     
@@ -117,14 +137,96 @@ class HumanClassifier :
             Prediction vector, with a class label for each sample.
 
         """
+        # if there are parameters, check that each parameter does have a value
+        for i in range(0, len(self.expressions)) :
+            if len(self.parameters[i]) > 0 :
+                if len(self.parameters[i]) != len(self.parameter_values[i]) :
+                    raise ValueError("Symbolic parameters with unknown values in expression \"%s\": %s" 
+                                     % (self.expressions[i], self.parameters_to_string(i)))
         
         # let's lambdify each expression in the list, getting a list of function pointers
-        functions = [ lambdify(self.variables, e, 'numpy') for e in self.expressions ]
+        functions = [ lambdify(self.variables[i], self.expressions[i], 'numpy') 
+                     for i in range(0, len(self.expressions)) ]
         
-        # 
+        # now we can get predictions! one set of predictions for each expression
+        predictions = np.zeros((len(functions), X.shape[0]), dtype=bool)
+        
+        for i in range(0, len(functions)) :
+            f = functions[i]
+            x = X[:,self.features[i]]
+            # we flatten the arguments of the function only if there is more than one
+            predictions[i] = f(*[x[:,f] for f in range(0, x.shape[1])])
             
+        # and now, we need to aggregate all predictions
+        y_pred = np.zeros(X.shape[0], dtype=int)
+        for s in range(0, X.shape[0]) :
+            # this is an array of size equal to the size of the classes
+            # if one of the elements is set to True, then we use that index
+            # to predict class label; however if there is a disagreement, we will
+            # need to solve it
+            p = predictions[:,s]
+            indexes = np.where(p == True)[0] # we only take a look at the first axis
+            
+            if len(indexes) == 0 and len(self.expressions) == 1 :
+                # easy case: there is only one expression (binary classification)
+                # and the outcome if 'False', it will be considered Class 1
+                y_pred[s] = 1
+                
+            elif len(indexes) == 1 :
+                # easy case: only one value in the array is 'True', so we
+                # assign a label equal to the index of the sample
+                y_pred[s] = indexes[0]
+                
+            else :
+                # there's a conflict: multiple expressions returned 'True'
+                # (or none did); for the moment, assign class label '-1'
+                y_pred[s] = -1
         
         return y_pred
+    
+    def to_string(self) :
+        return_string = ""
+        for i in range(0, len(self.expressions)) :
+            return_string += "Class %d: " % self.classes[i]
+            return_string += str(self.expressions[i])
+            return_string += "; variables:" + self.variables_to_string(i)
+            return_string += "; parameters:" + self.parameters_to_string(i)
+            return_string += "\n"
+            
+        return return_string
+    
+    def parameters_to_string(self, index) :
+        
+        return_string = ""
+        for p in range(0, len(self.parameters[index])) :
+            return_string += self.parameters[index][p] + "="
+            if p >= len(self.parameter_values[index]) :
+                return_string += "?"
+            else :
+                return_string += str(self.parameter_values[index][p])
+            return_string += " "
+        
+        if return_string == "" :
+            return_string = "None"
+        else :
+            return_string = return_string[:-1] # remove last ' '
+        
+        return return_string
+    
+    def variables_to_string(self, index) :
+        return_string = ""
+        for v in range(0, len(self.variables[index])) :
+            return_string += self.variables[index][v] + " -> "
+            if v >= len(self.features[index]) :
+                return_string += "?"
+            else :
+                return_string += str(self.features[index][v])
+            return_string += " "
+            
+        return return_string[:-1]
+    
+    def __str__(self) :
+        return self.to_string()
 
 class HumanRegressor :
     
@@ -383,12 +485,51 @@ class HumanRegressor :
 if __name__ == "__main__" :
     
     # example of HumanClassifier with an ad-hoc problem (binary Iris)
-    from sklearn import datasets
-    X, y = datasets.load_iris(return_X_y=True)
+    if True :
+        from sklearn import datasets
+        X, y = datasets.load_iris(return_X_y=True)
+        
+        # this is just for me, to identify the best class for this problem
+        import matplotlib.pyplot as plt
+        for c in np.unique(y) :
+            plt.plot(X[y==c][:,0], X[y==c][:,1], 'o', label="Class %d" % c)
+            
+        # I also draw a line, to find a good point
+        x_l = np.linspace(4.0, 7.0, 100)
+        y_l = [0.8 * x_ -1.2 for x_ in x_l]
+        plt.plot(x_l, y_l, 'r--', label="Tentative decision boundary" )
+        plt.legend(loc='best')
+        plt.show()
+        
+        # from the plot, Class 0 seems to be the easiest to isolate from the rest
+        for i in range(0, y.shape[0]) :
+            if y[i] != 0 : y[i] = 1
+        
+        # here is a simple rule that should provide good classification;
+        # for reference, feature 0 is sepal length, 1 is sepal width, 2 is petal length, 3 is petal width
+        rule = "(sl < 6.0) & (sw > 2.7)"
+        
+        # instantiate the classifier, also associating variables to features
+        classifier = HumanClassifier(rule, {"sl": 0, "sw": 1})
+        print("Classifier:", classifier)
+        y_pred = classifier.predict(X)
+        
+        # let's evaluate our work
+        from sklearn.metrics import accuracy_score
+        accuracy = accuracy_score(y, y_pred)
+        print("Final accuracy for the classifier is %.4f" % accuracy)
+        
+        # can we do better, with more complex rules?
+        rule = "sw -0.8*sl > -1.2"
+        classifier_2 = HumanClassifier(rule, {"sl": 0, "sw": 1})
+        print("Classifier", classifier_2)
+        y_pred = classifier_2.predict(X)
+        accuracy = accuracy_score(y, y_pred)
+        print("Final accuracy for the more complex classifier is %.4f" % accuracy)
     
     
     # example of HumanRegressor with 1-dimensional features, y=f(x)
-    if True :
+    if False :
         print("Creating data...")
         X = np.linspace(0, 1, 100).reshape((100,1))
         y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X])
