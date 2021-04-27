@@ -2,6 +2,10 @@
 """
 Created on Fri Apr 23 21:06:03 2021
 
+TODO: scikit-learn compliant estimators DO NOT check the coherence of their
+hyperparameters in __init__ , but wait for the user to call .fit (for compatibility
+with grid search algorithms).
+
 @author: Alberto Tonda
 """
 import cma
@@ -93,19 +97,17 @@ class HumanClassifier :
             
             self.variables[c] = v
             self.parameters[c] = p
-            self.parameter_values[c] = [] # parameters have non-set values
+            self.parameter_values[c] = {} # parameters have non-set values
             self.features[c] = f
             
         return
     
-    def fit(self, X, y, optimizer="cma", optimizer_options=None) :
+    def fit(self, X, y, optimizer="cma", optimizer_options=None, verbose=False) :
 
-        warnings.warn(".fit method currently not training internal parameters of the HumanClassifier, assuming that the logic expressions provided are working as they are.")
-                      
         # first, let's collect the list of parameters to be optimized
         optimizable_parameters = [p for c in self.expressions.keys() for p in self.parameters[c]]
         optimizable_parameters = sorted(list(set(optimizable_parameters)))
-        print("Optimizable parameters:", optimizable_parameters)
+        #print("Optimizable parameters:", optimizable_parameters)
         
         # we now create the error function
         # TODO it might be maybe improved with logistic stuff and class probabilities
@@ -113,10 +115,11 @@ class HumanClassifier :
         def error_function(parameter_values, parameter_names, X, y) :
             
             # debug
-            print(parameter_names, parameter_values)
+            #print(parameter_names, parameter_values)
             
             # replacement dictionary for parameters
-            replacement_dictionary = { parameter_names[i] : parameter_values[i] for i in range(0, len(parameter_names)) }
+            replacement_dictionary = { parameter_names[i] : parameter_values[i] 
+                                      for i in range(0, len(parameter_names)) }
             
             # let's create a dictionary of lambdified functions, after replacing parameters
             funcs = { c: lambdify(self.variables[c], self.expressions[c].subs(replacement_dictionary), "numpy") 
@@ -130,8 +133,12 @@ class HumanClassifier :
             for s in range(0, X.shape[0]) :
                 classes = []
                 for c in self.expressions.keys() :
-                    print("\tSample #%d, class %d: %s" % (s, c, str(X[s,self.features[c]])))
-                    prediction = funcs[c](*X[s,self.features[c]])
+                    #print("\tSample #%d, class %d: %s" % (s, c, str(X[s,self.features[c]])))
+                    prediction = False
+                    if len(self.features[c]) != 1 :
+                        prediction = funcs[c](*X[s,self.features[c]])
+                    else :
+                        prediction = funcs[c](X[s,self.features[c]])
                     if prediction == True : classes.append(c)
                 
                 if len(classes) == 1 :
@@ -146,21 +153,18 @@ class HumanClassifier :
                         y_pred[s] = -1
                         penalty += 1
             
+            # TODO penalty for 'undecided'?
             return (1.0 - accuracy_score(y, y_pred)) #- 0.01 * (penalty/float(y.shape[0]))
         
         # and now that the error function is defined, we can optimize!
         if optimizer_options is None : optimizer_options = dict()
-        #if verbose == False : 
-        optimizer_options['verbose'] = 1 # -9 is very quiet
-        #optimizer_options['popsize'] = 1000
+        optimizer_options['verbose'] = -9 # -9 is very quiet
         
-        #optimization_result = minimize(error_function, 
-        #                                  np.zeros(len(optimizable_parameters)), 
-        #                                  args=(optimizable_parameters, X, y))
-        #
-        #optimized_parameters = { optimizable_parameters[i] : optimization_result.x[i] 
-        #                        for i in range(0, len(optimizable_parameters)) }
+        if verbose == True : optimizer_options['verbose'] = 1 
         
+        # just to increase likelihood of repeatable results, population size of CMA-ES
+        # is here taken to be the default value * 10
+        optimizer_options['popsize'] = 10 * (4+ int(3*np.log(len(optimizable_parameters))))
         es = cma.CMAEvolutionStrategy(np.zeros(len(optimizable_parameters)), 1.0, optimizer_options)
         es.optimize(error_function, args=(optimizable_parameters, X, y))
         optimized_parameters = { optimizable_parameters[i] : es.result[0][i] 
@@ -168,9 +172,9 @@ class HumanClassifier :
         
         # store the values for the optimized parameters
         for c in self.expressions.keys() :
-            self.parameter_values[c] = [] # reset values
+            self.parameter_values[c] = {} # reset values
             for i in range(0, len(self.parameters[c])) :
-                self.parameter_values[c].append(optimized_parameters[self.parameters[c][i]])
+                self.parameter_values[c][self.parameters[c][i]] = optimized_parameters[self.parameters[c][i]]
         
         return
     
@@ -190,14 +194,21 @@ class HumanClassifier :
 
         """
         # if there are parameters, check that each parameter does have a value
+        # also, if expressions have parameters, we need to replace them, 
+        # creating a new dict of expressions
+        local_expressions = dict()
         for c, e in self.expressions.items() :
             if len(self.parameters[c]) > 0 :
                 if len(self.parameters[c]) != len(self.parameter_values[c]) :
                     raise ValueError("Symbolic parameters with unknown values in expression \"%s\": %s; run .fit to optimize parameters' values" 
                                      % (self.expressions[c], self.parameters_to_string(c)))
+                else :
+                    local_expressions[c] = self.expressions[c].subs(self.parameter_values[c])
+            else :
+                local_expressions[c] = self.expressions[c]
         
         # let's lambdify each expression in the list, getting a dictionary of function pointers
-        functions = { c : lambdify(self.variables[c], e, 'numpy') for c, e in self.expressions.items() }
+        functions = { c : lambdify(self.variables[c], e, 'numpy') for c, e in local_expressions.items() }
         
         # now we can get predictions! one set of predictions for each expression
         predictions = { c : np.zeros(X.shape[0], dtype=bool) for c in self.expressions.keys() }
@@ -231,7 +242,7 @@ class HumanClassifier :
                 # there's a conflict: multiple expressions returned 'True'
                 # (or none did, and the default class label is not set); 
                 # for the moment, assign class label '-1'
-                raise Warning("For sample #%d, no class expression set to 'True', and no default class specified" % s)
+                #warnings.warn("For sample #%d, no class expression set to 'True', and no default class specified" % s)
                 y_pred[s] = -1
         
         return y_pred
@@ -255,10 +266,7 @@ class HumanClassifier :
         return_string = ""
         for p in range(0, len(self.parameters[c])) :
             return_string += self.parameters[c][p] + "="
-            if p >= len(self.parameter_values[c]) :
-                return_string += "?"
-            else :
-                return_string += str(self.parameter_values[c][p])
+            return_string += str(self.parameter_values[c].get(self.parameters[c][p], "?"))
             return_string += " "
         
         if return_string == "" :
@@ -535,7 +543,32 @@ class HumanRegressor :
         
     def __str__(self) :
         return(self.to_string())
+    
+    def get_params(self, deep=True) :
+        """
+        Returns internal parameters of the estimator.
 
+        Parameters
+        ----------
+        deep : bool, optional
+            If set to True, also returns parameters of the internal estimators (if any).
+            Required for scikit-learn compatibility. The default is True.
+
+        Returns
+        -------
+        parameters_dictionary : dict
+            Dictionary with all parameters necessary on __init__, and their current value.
+
+        """
+        
+        parameters_dictionary = dict()
+        return parameters_dictionary
+    
+    def set_parameters(self, **parameters) :
+        
+        warnings.warn("HumanCLassifier's internal parameters depend on the initial equation, so a GridSearch might not work as intended.")
+        
+        return
 
 if __name__ == "__main__" :
     
@@ -563,7 +596,6 @@ if __name__ == "__main__" :
         print(classifier)
         
         y_pred = classifier.predict(X)
-        from sklearn.metrics import accuracy_score
         accuracy = accuracy_score(y, y_pred)
         print("Classification accuracy: %.4f" % accuracy)
         
@@ -577,11 +609,21 @@ if __name__ == "__main__" :
                         # the expression for class 0 and 2 are 'False'
         map_variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
         classifier = HumanClassifier(rules, map_variables_to_features)
-        print(classifier)
         classifier.fit(X, y)
-        
+        print(classifier)
         y_pred = classifier.predict(X)
+        accuracy = accuracy_score(y, y_pred)
+        print("Classification accuracy: %.4f" % accuracy)
         
+        rules = {0: "sw + -0.3856*sl > 1.1009",
+                 2: "pw > 1.7823",
+                 1: ""}
+        
+        print("\nAnother hand-designed classifier, but with learned parameters from a previous step")
+        classifier = HumanClassifier(rules, map_variables_to_features)
+        print(classifier)
+        accuracy = accuracy_score(y, classifier.predict(X))
+        print("Classification accuracy: %.4f" % accuracy)
     
     # example of HumanClassifier with an ad-hoc problem (binary Iris)
     if False :
