@@ -11,7 +11,7 @@ pip install humanmodels
 ```
 On Windows, HumanModels can be installed through Anaconda:
 ```
-conda install humanmodelsd
+conda install humanmodels
 ```
 
 ## Examples
