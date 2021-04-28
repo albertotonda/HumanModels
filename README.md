@@ -1,6 +1,4 @@
-![#f03c15](https://via.placeholder.com/15/f03c15/000000?text=+) `Warning: the package is still not uploaded to pip, so it currently can only be installed by downloading the repository.`
-
-<span style="background-color: #FF0000">Warning: the package is still not uploaded to pip, so it currently can only be installed by downloading the repository.</span>
+![#f03c15](https://via.placeholder.com/15/f03c15/000000?text=+) `Warning: the package is still not uploaded to pip, so it currently can only be installed and used by downloading the repository.`
 
 # HumanModels
 
