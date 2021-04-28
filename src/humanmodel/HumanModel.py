@@ -749,3 +749,11 @@ if __name__ == "__main__" :
         y_pred = regressor.predict(X_train)
         from sklearn.metrics import mean_squared_error
         print("Mean squared error:", mean_squared_error(y_train, y_pred))
+        
+        X_test = np.zeros((100,3))
+        X_test[:,0] = np.linspace(1, 2, 100)
+        X_test[:,1] = np.random.rand(100)
+        X_test[:,2] = np.linspace(1, 2, 100)
+        y_test = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X_test])
+        y_pred = regressor.predict(X_test)
+        print("Mean squared error:", mean_squared_error(y_test, y_pred))

@@ -60,6 +60,19 @@ Parameters: {'a_1': 1.0000003000418696, 'a_2': 1.0000005475067253, 'a_3': 2.0000
 Trained model: y = 2.00000044986268*x**2 + 1.00000030004187*x + 2.00000042748442*z**2 + 1.00000054750673*z + 0.5
 Mean squared error: 7.72490931190691e-13
 ```
+The regressor can also be tested on unseen data, and since in this case the equation used to generate the data has the same structure as the one given to the regressor, the generalization is of course satisfying:
+```python
+X_test = np.zeros((100,3))
+X_test[:,0] = np.linspace(1, 2, 100)
+X_test[:,1] = np.random.rand(100)
+X_test[:,2] = np.linspace(1, 2, 100)
+y_test = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X_test])
+y_pred = regressor.predict(X_test)
+print("Mean squared error on test:", mean_squared_error(y_test, y_pred))
+```
+```
+Mean squared error on test: 1.2055817248044523e-11
+```
 
 ## Depends on
 scikit-learn
