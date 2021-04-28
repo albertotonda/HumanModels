@@ -1,4 +1,4 @@
-![#f03c15](https://via.placeholder.com/15/f03c15/000000?text=+) `Warning: the package is still not uploaded to pip, so it currently can only be installed and used by downloading the repository.`
+![#f03c15](https://via.placeholder.com/15/f03c15/000000?text=+) `Warning: the package is still not available through pip or conda, so it currently can only be installed and used by cloning/downloading this repository.`
 
 # HumanModels
 
