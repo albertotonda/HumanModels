@@ -92,7 +92,7 @@ print(classifier)
 Classifier: Class 0: (sw > 2.7) & (sl < 6.0); variables:sl -> 0 sw -> 1; parameters:None
 Default class (if all other expressions are False): 1
 ```
-In this case there are no trainable parameters, so the classifier can be used without calling `.fit`:
+In this case there are no trainable parameters, so the classifier can be used without calling `.fit(X,y)`:
 ```python
 y_pred = classifier.predict(X)
 from sklearn.metrics import accuracy_score
@@ -100,10 +100,39 @@ accuracy = accuracy_score(y, y_pred)
 print("Final accuracy for the classifier is %.4f" % accuracy)
 ```
 ```
-Final accuracy for the more complex classifier is 0.9933
+Final accuracy for the classifier is 0.9067
 ```
-For multi-class classification problems, `HumanClassifier` can accept a dictionary of logic expressions in the form `{label0 -> "expression0", label1 -> "expression1", ...}`. As for `HumanRegressor`, expression can have trainable parameters. Let's see an example with `Iris` again.
 
+For multi-class classification problems, `HumanClassifier` can accept a dictionary of logic expressions in the form `{label0 -> "expression0", label1 -> "expression1", ...}`. As for `HumanRegressor`, expression can also have trainable parameters, optimized when `.fit(X,y)` is called. Let's see an example with `Iris` again:
+```python
+X, y = datasets.load_iris(return_X_y=True)
+rules = {0: "sw + p_0*sl > p_1",
+		 2: "pw > p_2",
+		 1: ""} # this means that a sample will be associated to class 1 if both
+				# the expression for class 0 and 2 are 'False'
+variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
+classifier = HumanClassifier(rules, variables_to_features)
+print(classifier)
+```
+```
+Class 0: p_0*sl + sw > p_1; variables:sl -> 0 sw -> 1; parameters:p_0=? p_1=?
+Class 2: pw > p_2; variables:pw -> 3; parameters:p_2=?
+Default class (if all other expressions are False): 1
+```
+We can now train the classifier:
+```python
+classifier.fit(X, y)
+print(classifier)
+y_pred = classifier.predict(X)
+accuracy = accuracy_score(y, y_pred)
+print("Classification accuracy: %.4f" % accuracy)
+```
+```
+Class 0: p_0*sl + sw > p_1; variables:sl -> 0 sw -> 1; parameters:p_0=-0.6491880968641275 p_1=-0.12490468490418744
+Class 2: pw > p_2; variables:pw -> 3; parameters:p_2=1.7073348596674072
+Default class (if all other expressions are False): 1
+Classification accuracy: 0.9400
+```
 
 
 ## Depends on

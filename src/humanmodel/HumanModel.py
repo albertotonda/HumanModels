@@ -573,7 +573,7 @@ class HumanRegressor :
 if __name__ == "__main__" :
     
     # example of HumanClassifier, with Iris all-classes
-    if False :
+    if True :
         from sklearn import datasets
         X, y = datasets.load_iris(return_X_y=True)
         
@@ -607,8 +607,9 @@ if __name__ == "__main__" :
                  2: "pw > p_2",
                  1: ""} # this means that a sample will be associated to class 1 if both
                         # the expression for class 0 and 2 are 'False'
-        map_variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
-        classifier = HumanClassifier(rules, map_variables_to_features)
+        variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
+        classifier = HumanClassifier(rules, variables_to_features)
+        print(classifier)
         classifier.fit(X, y)
         print(classifier)
         y_pred = classifier.predict(X)
@@ -626,7 +627,7 @@ if __name__ == "__main__" :
         print("Classification accuracy: %.4f" % accuracy)
     
     # example of HumanClassifier with an ad-hoc problem (binary Iris)
-    if True :
+    if False :
         from sklearn import datasets
         X, y = datasets.load_iris(return_X_y=True)
         
