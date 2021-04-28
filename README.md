@@ -74,6 +74,38 @@ print("Mean squared error on test:", mean_squared_error(y_test, y_pred))
 Mean squared error on test: 1.2055817248044523e-11
 ```
 
+### HumanClassifier
+`HumanClassifier` also takes in input a sympy-compatible string (or dictionary of strings), defining a logic expression that can be evaluated to return `True` or `False`. If only one string is provided during initialization, the problem is assumed to be binary classification, with `True` corresponding to Class 0 and `False` corresponding to Class 1. Let's test it on the classic `Iris` benchmark provided in `scikit-learn`, transformed into a binary classification problem.
+
+```python
+from sklearn import datasets
+X, y = datasets.load_iris(return_X_y=True)
+for i in range(0, y.shape[0]) : if y[i] != 0 : y[i] = 1
+
+from humanmodels import HumanClassifier
+rule = "(sl < 6.0) & (sw > 2.7)"
+variables_to_features = {"sl": 0, "sw": 1}
+classifier = HumanClassifier(rule, variables_to_features)
+print(classifier)
+```
+```
+Classifier: Class 0: (sw > 2.7) & (sl < 6.0); variables:sl -> 0 sw -> 1; parameters:None
+Default class (if all other expressions are False): 1
+```
+In this case there are no trainable parameters, so the classifier can be used without calling `.fit`:
+```python
+y_pred = classifier.predict(X)
+from sklearn.metrics import accuracy_score
+accuracy = accuracy_score(y, y_pred)
+print("Final accuracy for the classifier is %.4f" % accuracy)
+```
+```
+Final accuracy for the more complex classifier is 0.9933
+```
+For multi-class classification problems, `HumanClassifier` can accept a dictionary of logic expressions in the form `{label0 -> "expression0", label1 -> "expression1", ...}`. As for `HumanRegressor`, expression can have trainable parameters. Let's see an example with `Iris` again.
+
+
+
 ## Depends on
 scikit-learn
 sympy

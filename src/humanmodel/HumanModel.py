@@ -626,7 +626,7 @@ if __name__ == "__main__" :
         print("Classification accuracy: %.4f" % accuracy)
     
     # example of HumanClassifier with an ad-hoc problem (binary Iris)
-    if False :
+    if True :
         from sklearn import datasets
         X, y = datasets.load_iris(return_X_y=True)
         
@@ -729,7 +729,7 @@ if __name__ == "__main__" :
         regressor.fit(X, y)
         print(regressor)
         
-    if True :
+    if False :
         model_string = "y = 0.5 + a_1*x + a_2*z + a_3*x**2 + a_4*z**2"
         variables_to_features = {"x": 0, "z": 2}
         regressor = HumanRegressor(model_string, variables_to_features)
