@@ -103,12 +103,12 @@ print("Final accuracy for the classifier is %.4f" % accuracy)
 Final accuracy for the classifier is 0.9067
 ```
 
-For multi-class classification problems, `HumanClassifier` can accept a dictionary of logic expressions in the form `{label0 -> "expression0", label1 -> "expression1", ...}`. As for `HumanRegressor`, expression can also have trainable parameters, optimized when `.fit(X,y)` is called. Let's see an example with `Iris` again:
+For multi-class classification problems, `HumanClassifier` can accept a dictionary of logic expressions in the form `{label0 : "expression0", label1 : "expression1", ...}`. As for `HumanRegressor`, expression can also have trainable parameters, optimized when `.fit(X,y)` is called. Let's see an example with `Iris` again:
 ```python
 X, y = datasets.load_iris(return_X_y=True)
 rules = {0: "sw + p_0*sl > p_1",
-		 2: "pw > p_2",
-		 1: ""} # this means that a sample will be associated to class 1 if both
+		2: "pw > p_2",
+		1: ""} 	# this means that a sample will be associated to class 1 if both
 				# the expression for class 0 and 2 are 'False'
 variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
 classifier = HumanClassifier(rules, variables_to_features)
