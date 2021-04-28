@@ -20,6 +20,12 @@ from sympy.core.symbol import Symbol
 
 from sklearn.metrics import accuracy_score, mean_squared_error
 
+# this is a namespace trick copied from numpy
+#import humanmodels as hm
+#from humanmodels import *
+#__version__ = hm.__version__
+#__all__ = hm.__all__[:]
+
 class HumanClassifier :
     
     expressions = None
