@@ -513,12 +513,12 @@ class HumanRegressor :
         # finally, evaluate the function
         y_pred = np.zeros((X.shape[0], 1))
         # again, if there is just one feature, we don't need to flatten the arguments
-        if len(features) != 1 :
-            #for i in range(0, X.shape[0]) : y_pred[i] = f(*x[i])
-            y_pred = f(x)
-        else :
-            #for i in range(0, X.shape[0]) : y_pred[i] = f(x[i])
-            y_pred = f(*[x[:,i] for i in range(0, x.shape[1])])
+        #if len(features) != 1 :
+        #    #for i in range(0, X.shape[0]) : y_pred[i] = f(*x[i])
+        #    y_pred = f(x)
+        #else :
+        #    #for i in range(0, X.shape[0]) : y_pred[i] = f(x[i])
+        y_pred = f(*[x[:,i] for i in range(0, x.shape[1])])
         
         return y_pred
     
@@ -573,7 +573,7 @@ class HumanRegressor :
 if __name__ == "__main__" :
     
     # example of HumanClassifier, with Iris all-classes
-    if True :
+    if False :
         from sklearn import datasets
         X, y = datasets.load_iris(return_X_y=True)
         
@@ -728,3 +728,24 @@ if __name__ == "__main__" :
         print("Fitting data...")
         regressor.fit(X, y)
         print(regressor)
+        
+    if True :
+        model_string = "y = 0.5 + a_1*x + a_2*z + a_3*x**2 + a_4*z**2"
+        variables_to_features = {"x": 0, "z": 2}
+        regressor = HumanRegressor(model_string, variables_to_features)
+        print(regressor)
+        import numpy as np
+        import numpy as np
+        print("Creating data...")
+        X_train = np.zeros((100,3))
+        X_train[:,0] = np.linspace(0, 1, 100)
+        X_train[:,1] = np.random.rand(100)
+        X_train[:,2] = np.linspace(0, 1, 100)
+        
+        y_train = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X_train])
+        print("Fitting data...")
+        regressor.fit(X_train, y_train)
+        print(regressor)
+        y_pred = regressor.predict(X_train)
+        from sklearn.metrics import mean_squared_error
+        print("Mean squared error:", mean_squared_error(y_train, y_pred))

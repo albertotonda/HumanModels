@@ -25,22 +25,40 @@ variables_to_features = {"x": 0, "z": 2}
 regressor = HumanRegressor(model_string, variables_to_features)
 print(regressor)
 ```
-As the only variables provided in the `variables_to_features` dictionary are named `x`, `y`, `z`, all other alphabetic symbols (`a_1`, `a_2`, `a_3`) are interpreted as trainable parameters. Let's generate some data and test the algorithm.
+Printing the model as a string will return:
+```
+Model: y = a_1*x + a_2*z + a_3*x**2 + a_4*z**2 + 0.5
+Variables: ['x', 'z']
+Parameters: ['a_1', 'a_2', 'a_3', 'a_4']
+```
+
+As the only variables provided in the `variables_to_features` dictionary are named `x`, `y`, `z`, all other alphabetic symbols (`a_1`, `a_2`, `a_3`, `a_4`) are interpreted as trainable parameters. Let's generate some data and test the algorithm.
 ```python
 import numpy as np
 print("Creating data...")
-X = np.zeros((100,3))
-X[:,0] = np.linspace(0, 1, 100)
-X[:,1] = np.random.rand(100)
-X[:,2] = np.linspace(0, 1, 100)
-print(X)
-y = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X])
-print(y)
+X_train = np.zeros((100,3))
+X_train[:,0] = np.linspace(0, 1, 100)
+X_train[:,1] = np.random.rand(100)
+X_train[:,2] = np.linspace(0, 1, 100)
+
+y_train = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X_train])
 print("Fitting data...")
-regressor.fit(X, y)
-y_pred = regressor.predict(X)
+regressor.fit(X_train, y_train)
+print(regressor)
+
+y_pred = regressor.predict(X_train)
 from sklearn.metrics import mean_squared_error
 print("Mean squared error:", mean_squared_error(y, y_pred))
+```
+The resulting output shows the optimized values for the parameters of the trained model, and its performance:
+```
+Creating data...
+Fitting data...
+Model: y = a_1*x + a_2*z + a_3*x**2 + a_4*z**2 + 0.5
+Variables: ['x', 'z']
+Parameters: {'a_1': 1.0000003000418696, 'a_2': 1.0000005475067253, 'a_3': 2.000000449862675, 'a_4': 2.000000427484416}
+Trained model: y = 2.00000044986268*x**2 + 1.00000030004187*x + 2.00000042748442*z**2 + 1.00000054750673*z + 0.5
+Mean squared error: 7.72490931190691e-13
 ```
 
 ## Depends on
