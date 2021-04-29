@@ -50,7 +50,7 @@ print(regressor)
 
 y_pred = regressor.predict(X_train)
 from sklearn.metrics import mean_squared_error
-print("Mean squared error:", mean_squared_error(y, y_pred))
+print("Mean squared error:", mean_squared_error(y_train, y_pred))
 ```
 The resulting output shows the optimized values for the parameters of the trained model, and its performance:
 ```
@@ -138,7 +138,12 @@ Classification accuracy: 0.9400
 
 
 ## Depends on
-scikit-learn
-sympy
-scipy
-cma
+numpy (for fast computations)
+
+sympy (for symbolic mathematics)
+
+scipy (for optimization)
+
+cma (also for optimization of non-convex functions)
+
+scikit-learn (for quality metrics, such as accuracy and mean squared error; also, HumanClassifier and HumanRegressor have the ambition of being compatible with scikit-learn estimators)
