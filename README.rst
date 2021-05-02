@@ -4,7 +4,7 @@
 humanmodels
 ===========
 
-.. image:: img/hm.svg
+.. image:: img/hm.jpg
   :width: 400
   :alt: HumanModels logo
 
