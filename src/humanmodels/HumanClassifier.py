@@ -21,7 +21,9 @@ from sympy.core.symbol import Symbol
 from sklearn.metrics import accuracy_score, mean_squared_error
 
 class HumanClassifier :
-    
+    """
+    Human-style classification, using a dictionary of rules to be evaluated as logic expressions (e.g. "x*2 + 4*z > 0"), to then associate samples to a class.
+    """
     expressions = None
     classes = None
     default_class = None
@@ -176,7 +178,7 @@ class HumanClassifier :
             for i in range(0, len(self.parameters[c])) :
                 self.parameter_values[c][self.parameters[c][i]] = optimized_parameters[self.parameters[c][i]]
         
-        return
+        return self
     
     def predict(self, X) :
         """

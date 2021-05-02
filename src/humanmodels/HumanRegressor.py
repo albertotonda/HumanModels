@@ -18,18 +18,17 @@ from sympy import lambdify
 from sympy.parsing import sympy_parser
 from sympy.core.symbol import Symbol
 
-from sklearn.metrics import accuracy_score, mean_squared_error
+from sklearn.metrics import mean_squared_error
 
 
 class HumanRegressor :
-    
-    expression = None
-    target_variable = None
-    variables_to_features = None
-    variables = None
-    parameters = None
-    features = None
-    parameter_values = None
+    """
+    Human-designed regressor, initialized with a sympy-compatible
+    text string describing an equation. Also needs a dictionary mapping the
+    correspondance between the variables named in the equation and the
+    features in ``X``.
+
+    """
     
     def __init__(self, equation_string, map_variables_to_features, target_variable=None) :
         """
@@ -65,7 +64,13 @@ class HumanRegressor :
         None.
 
         """
-        expression = None
+        self.expression = None
+        self.target_variable = None
+        self.variables_to_features = None
+        self.variables = None
+        self.parameters = None
+        self.features = None
+        self.parameter_values = None
         
         # first, let's check if there is an '=' sign in the expression
         tokens = equation_string.split("=")
@@ -120,10 +125,8 @@ class HumanRegressor :
         
         optimizer : string, default="bfgs"
             The optimizer that is going to be used. Acceptable values:
-                - "bfgs", default: It's the Broyden-Fletcher-Goldfarb-Shanno algorithm, suitable for
-                function with whose derivative can be computed. Generally faster, but might not always work.
-                - "cma": Covariance-Matrix-Adaptation Evolution Strategy, derivative-free optimization.
-                Much slower, but generally more effective than "bfgs".
+                - "bfgs", default: It's the Broyden-Fletcher-Goldfarb-Shanno algorithm, suitable for function with whose derivative can be computed. Generally faster, but might not always work.
+                - "cma": Covariance-Matrix-Adaptation Evolution Strategy, derivative-free optimization. Much slower, but generally more effective than "bfgs".
         
         optimizer_options : string, default=None
             Options that can be passed to the optimization algorithm. Shape and type depend on
@@ -253,6 +256,18 @@ class HumanRegressor :
         return y_pred
     
     def to_string(self) :
+        """
+        Returns
+        -------
+        model_description : str
+            A human-readable string describing the model.
+        """
+        
+        # this is a utility function
+        from sympy import Float, Number
+        def printM(expr, num_digits):
+            return expr.xreplace({n.evalf() : n if type(n)==int else Float(n, num_digits) for n in expr.atoms(Number)}) 
+
         return_string = "Model not initialized"
         if self.expression is not None :
             return_string = "Model: " + str(self.target_variable) + " = "
@@ -262,7 +277,7 @@ class HumanRegressor :
             if self.parameter_values is not None :
                 return_string += "\nParameters: " + str(self.parameter_values)
                 return_string += "\nTrained model: " + str(self.target_variable) + " = "
-                return_string += str(self.expression.subs(self.parameter_values))
+                return_string += str(printM(self.expression.subs(self.parameter_values), 4))
             else :
                 return_string += "\nParameters: " + str(self.parameters)
             

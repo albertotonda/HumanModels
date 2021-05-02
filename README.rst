@@ -4,6 +4,10 @@
 humanmodels
 ===========
 
+.. image:: img/hm.svg
+  :width: 400
+  :alt: HumanModels logo
+
 .. inclusion-marker-for-sphinx-documentation
 
 This package provides human-designed, scikit-learn compatible models for
