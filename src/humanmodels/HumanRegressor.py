@@ -20,9 +20,9 @@ from sympy.core.symbol import Symbol
 
 from sklearn.metrics import mean_squared_error
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.base import BaseEstimator, RegressorMixin
 
-
-class HumanRegressor :
+class HumanRegressor(BaseEstimator) :
     """
     Human-designed regressor, initialized with a sympy-compatible
     text string describing an equation. Also needs a dictionary mapping the
@@ -64,12 +64,13 @@ class HumanRegressor :
         self._parameters = None
         self._features = None
         self._parameter_values = None
-         
+        self._variables_to_features = None 
+        
         # expression is first stored as a string, with the idea that consistency will
         # be evaluated in a second step, before fitting
-        self._equation_string = equation_string
-        self._target_variable_string = target_variable_string
-        self._variables_to_features = map_variables_to_features
+        self.equation_string = equation_string
+        self.target_variable_string = target_variable_string
+        self.variables_to_features = map_variables_to_features
 
         return
     
@@ -112,7 +113,7 @@ class HumanRegressor :
         X, y = check_X_y(X, y)
         
         if map_variables_to_features is not None :
-            self._variables_to_features = map_variables_to_features
+            self.variables_to_features = map_variables_to_features
                  
         # check and parse internal parameters
         self.check_parameters()
@@ -213,6 +214,9 @@ class HumanRegressor :
         # scikit-learn compatibility checks
         X = check_array(X)
         
+        # check if model is trained
+        check_is_fitted(self, ["_expression", "_variables"])
+        
         # create new expression, replacing parameters with their values
         local_expression = self._expression
         
@@ -278,48 +282,6 @@ class HumanRegressor :
     def __str__(self) :
         return(self.to_string())
     
-    def get_params(self, deep=True) :
-        """
-        Returns internal parameters of the estimator.
-
-        Parameters
-        ----------
-        deep : bool, optional
-            If set to True, also returns parameters of the internal estimators (if any).
-            Required for scikit-learn compatibility. The default is True.
-
-        Returns
-        -------
-        parameters_dictionary : dict
-            Dictionary with all parameters necessary on __init__, and their current value.
-
-        """
-        
-        parameters_dictionary = dict()
-        parameters_dictionary["equation_string"] = self._equation_string
-        print("Calling get_params: " + str(parameters_dictionary))
-        return parameters_dictionary
-    
-    def set_params(self, **parameters) :
-        """
-        Set internal parameters of the estimator.
-
-        Parameters
-        ----------
-        **parameters : dict
-            Dictionary of parameters.
-
-        Returns
-        -------
-        self
-
-        """
-        print("Calling set_params: " + str(parameters))
-        for parameter, value in parameters.items():
-            setattr(self, parameter, value)
-    
-        return self
-    
     def check_parameters(self) :
         """
         Checks internal parameters for consistency, before starting data fitting.
@@ -330,31 +292,33 @@ class HumanRegressor :
 
         """
         # first, let's check if there is an '=' sign in the expression
-        tokens = self._equation_string.split("=")
+        tokens = self.equation_string.split("=")
         equation_string = ""
         target_variable_string = ""
-        if len(tokens) < 2 and self._target_variable_string is not None :
-            target_variable_string = self._target_variable_string
+        if len(tokens) < 2 and self.target_variable_string is not None :
+            target_variable_string = self.target_variable_string
             equation_string = tokens[0]
         elif len(tokens) == 2 :
             target_variable_string = tokens[0]
             equation_string = tokens[1]
         else :
             # raise an exception
-            raise ValueError("String \"%s\"in equation_string cannot be parsed, or target_variable_string \"%s\" not specified." % (self._equation_string, str(self._target_variable_string)))
+            raise ValueError("String \"%s\"in equation_string cannot be parsed, or target_variable_string \"%s\" not specified." % (self.equation_string, str(self.target_variable_string)))
                 
         # analyze the string through symbolic stuff
         self._target_variable = sympy_parser.parse_expr(target_variable_string)
         self._expression = sympy_parser.parse_expr(equation_string)
         
         # now, let's check the dictionary containing the association feature names -> variables
-        if self._variables_to_features is None or len(self._variables_to_features) == 0 :
+        if self.variables_to_features is None or len(self.variables_to_features) == 0 :
             warnings.warn("map_variables_to_features dictionary empty, HumanRegressor will make an educated guess")
             all_symbols = sorted([str(s) for s in self._expression.atoms(Symbol)])
             
             self._variables_to_features = dict()
             for i in range(0, len(all_symbols)) :
                 self._variables_to_features[all_symbols[i]] = i
+        else :
+            self._variables_to_features = self.variables_to_features
             
         # let's get the list of the variables
         self._variables = sorted(list(self._variables_to_features.keys()))
@@ -380,9 +344,8 @@ if __name__ == "__main__" :
     regressor.fit(X, y)
     
     print("Regressor: %s" % regressor)
-    import sys
-    sys.exit(0)
     
     from sklearn.utils.estimator_checks import check_estimator
-    regressor = HumanRegressor("y = 2*x")
-    print(check_estimator(regressor))
+    regressor = HumanRegressor("y = x*a_1", map_variables_to_features={"x": 0})
+    print(regressor)
+    check_estimator(regressor)
