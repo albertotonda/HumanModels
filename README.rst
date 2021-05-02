@@ -34,7 +34,7 @@ You can also install the package by cloning or downloading this repository, ``cd
 ::
 
     python -m build
-	python -m pip install dist/humanmodels*whl
+    python -m pip install dist/humanmodels*whl
 
 On Windows, HumanModels can be installed through Anaconda:
 
