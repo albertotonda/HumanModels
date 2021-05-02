@@ -22,7 +22,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.base import BaseEstimator, RegressorMixin
 
-class HumanRegressor(BaseEstimator) :
+class HumanRegressor(BaseEstimator, RegressorMixin) :
     """
     Human-designed regressor, initialized with a sympy-compatible
     text string describing an equation. Also needs a dictionary mapping the
@@ -344,8 +344,11 @@ if __name__ == "__main__" :
     regressor.fit(X, y)
     
     print("Regressor: %s" % regressor)
+    print("Score: %.4f" % regressor.score(X, y))
     
     from sklearn.utils.estimator_checks import check_estimator
-    regressor = HumanRegressor("y = x*a_1", map_variables_to_features={"x": 0})
-    print(regressor)
-    check_estimator(regressor)
+    from sklearn.base import is_regressor
+    regressor = HumanRegressor("y = a_0 + x*a_1 + x**2", map_variables_to_features={"x": 0})
+    #print(regressor)
+    #check_estimator(regressor)
+    print(is_regressor(regressor))
