@@ -19,6 +19,7 @@ from sympy.parsing import sympy_parser
 from sympy.core.symbol import Symbol
 
 from sklearn.metrics import mean_squared_error
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
 
 class HumanRegressor :
@@ -30,13 +31,13 @@ class HumanRegressor :
 
     """
     
-    def __init__(self, equation_string, map_variables_to_features, target_variable=None) :
+    def __init__(self, equation_string : str, target_variable_string : str = None, map_variables_to_features : dict = None) :
         """
         Builder for the class.
         
         Parameters
         ----------
-        equation_string : string
+        equation_string : str
             String containing the equation of the model. Examples:
                 1. "y = 2*x + 4"
                 2. "4*x_0 + 5*x_1 + 6*x_2"
@@ -47,66 +48,33 @@ class HumanRegressor :
             Maps the names (or integer indexes) of the features to the variables in the internal symbolic 
             expression representing the model.
             
-        target_variable : string, optional
+        target_variable_string : str, optional
             String containing the name of the target variable. It's not necessary to specify
             target_variable if the left-hand part of the equation has been provided in equation_string.
             The default is None.
-
-        Raises
-        ------
-        an
-            DESCRIPTION.
-        ValueError
-            DESCRIPTION.
 
         Returns
         -------
         None.
 
         """
-        self.expression = None
-        self.target_variable = None
-        self.variables_to_features = None
-        self.variables = None
-        self.parameters = None
-        self.features = None
-        self.parameter_values = None
-        
-        # first, let's check if there is an '=' sign in the expression
-        tokens = equation_string.split("=")
-        if len(tokens) < 2 and target_variable is not None :
-            expression = tokens[0]
-        elif len(tokens) == 2 :
-            target_variable = tokens[0]
-            expression = tokens[1]
-        else :
-            # raise an exception
-            raise ValueError("String in equation_string cannot be parsed, or target_variable not specified.")
-        
-        # analyze the string through symbolic stuff
-        self.target_variable = sympy_parser.parse_expr(target_variable)
-        self.expression = sympy_parser.parse_expr(expression)
-        
-        # now, let's check the dictionary containing the association feature names -> variables
-        if map_variables_to_features is None or len(map_variables_to_features) == 0 :
-            raise ValueError("map_variables_to_features dictionary cannot be empty")
-        
-        self.variables_to_features = dict(map_variables_to_features)
-        # let's get the list of the variables
-        self.variables = sorted(list(self.variables_to_features.keys()))
-        # and the list of the features, in the same order as the alphabetically sorted variables
-        self.features = [self.variables_to_features[v] for v in self.variables]
-        
-        # now, the *parameters* of the model are Symbols detected by sympy that are not associated to
-        # any *variable*; so, let's first get a list of all Symbols (as strings)
-        all_symbols = [str(s) for s in self.expression.atoms(Symbol)]
-        # and then select those who are not variables
-        self.parameters = sorted([s for s in all_symbols if s not in self.variables])
+        self._expression = None
+        self._target_variable = None
+        self._variables = None
+        self._parameters = None
+        self._features = None
+        self._parameter_values = None
+         
+        # expression is first stored as a string, with the idea that consistency will
+        # be evaluated in a second step, before fitting
+        self._equation_string = equation_string
+        self._target_variable_string = target_variable_string
+        self._variables_to_features = map_variables_to_features
 
         return
     
     
-    def fit(self, X, y, map_features_to_variables=None, optimizer_options=None, optimizer="bfgs", verbose=False) :
+    def fit(self, X, y, map_variables_to_features : dict = None, optimizer_options : dict = None, optimizer : str = "bfgs", verbose: bool = False) :
         """
         Fits the internal model to the data, using features in X and known values in y.
         
@@ -139,6 +107,20 @@ class HumanRegressor :
         -------
         None.
         """
+        
+        # checks for scikit-learn compatibility
+        X, y = check_X_y(X, y)
+        
+        if map_variables_to_features is not None :
+            self._variables_to_features = map_variables_to_features
+                 
+        # check and parse internal parameters
+        self.check_parameters()
+        
+        # now, if there are no parameters, there is nothing to train; return
+        if len(self._parameters) == 0 :
+            warnings.warn("No parameters specified, '.fit' has nothing to train")
+            return self
         
         # we first define the function to be optimized; in order to have maximum
         # efficiency, we will need to use sympy's lambdify'
@@ -178,19 +160,19 @@ class HumanRegressor :
         optimized_parameters = None
         if optimizer == 'bfgs' :
             optimization_result = minimize(error_function, 
-                                          np.zeros(len(self.parameters)), 
-                                          args=(self.expression, self.variables, 
-                                                self.parameters, self.features, y))
+                                          np.zeros(len(self._parameters)), 
+                                          args=(self._expression, self._variables, 
+                                                self._parameters, self._features, y))
             optimized_parameters = optimization_result.x
             
         elif optimizer == 'cma' :
             if optimizer_options is None : optimizer_options = dict()
             if verbose == False : optimizer_options['verbose'] = -9 # very quiet
             
-            es = cma.CMAEvolutionStrategy(np.zeros(len(self.parameters)), 1.0, optimizer_options)
+            es = cma.CMAEvolutionStrategy(np.zeros(len(self._parameters)), 1.0, optimizer_options)
             es.optimize(error_function, 
-                        args=(self.expression, self.variables, 
-                        self.parameters, self.features, y))
+                        args=(self._expression, self._variables, 
+                        self._parameters, self._features, y))
             optimized_parameters = es.result[0]
             
         else :
@@ -199,11 +181,11 @@ class HumanRegressor :
                                  information." % optimizer)
             
         
-        self.parameter_values = { self.parameters[i]: optimized_parameters[i] 
-                                 for i in range(0, len(self.parameters)) }
+        self._parameter_values = { self._parameters[i]: optimized_parameters[i] 
+                                 for i in range(0, len(self._parameters)) }
         
-        # TODO return MSE?
-        return
+        # return self, for scikit-learn compatibility
+        return self
     
     def predict(self, X, map_variables_to_features=None, verbose=False) :
         """
@@ -228,19 +210,26 @@ class HumanRegressor :
             Returns predicted values.
 
         """
+        # scikit-learn compatibility checks
+        X = check_array(X)
+        
         # create new expression, replacing parameters with their values
-        local_expression = self.expression.subs(self.parameter_values)
+        local_expression = self._expression
+        
+        # if there were parameters in the expression, replace them with their optimized values
+        if len(self._parameters) > 0 :
+            local_expression = self._expression.subs(self._parameter_values)
         
         # lambdify the expression, to evaluate it properly
-        f = lambdify(self.variables, local_expression, 'numpy')
+        f = lambdify(self._variables, local_expression, 'numpy')
         
         # if a different mapping has been specified as argument, use it to prepare the data;
         # otherwise, use classic mapping
-        mapping = self.variables_to_features
+        mapping = self._variables_to_features
         if map_variables_to_features is not None : mapping = map_variables_to_features
         
         # prepare feature list and data
-        features = [mapping[v] for v in self.variables]
+        features = [mapping[v] for v in self._variables]
         x = X[:,features]
         
         # finally, evaluate the function
@@ -269,17 +258,17 @@ class HumanRegressor :
             return expr.xreplace({n.evalf() : n if type(n)==int else Float(n, num_digits) for n in expr.atoms(Number)}) 
 
         return_string = "Model not initialized"
-        if self.expression is not None :
-            return_string = "Model: " + str(self.target_variable) + " = "
-            return_string += str(self.expression)
-            return_string += "\nVariables: " + str(self.variables)
+        if self._expression is not None :
+            return_string = "Model: " + str(self._target_variable) + " = "
+            return_string += str(self._expression)
+            return_string += "\nVariables: " + str(self._variables)
 
-            if self.parameter_values is not None :
-                return_string += "\nParameters: " + str(self.parameter_values)
-                return_string += "\nTrained model: " + str(self.target_variable) + " = "
-                return_string += str(printM(self.expression.subs(self.parameter_values), 4))
+            if self._parameter_values is not None :
+                return_string += "\nParameters: " + str(self._parameter_values)
+                return_string += "\nTrained model: " + str(self._target_variable) + " = "
+                return_string += str(printM(self._expression.subs(self._parameter_values), 4))
             else :
-                return_string += "\nParameters: " + str(self.parameters)
+                return_string += "\nParameters: " + str(self._parameters)
             
             return(return_string)
         
@@ -307,11 +296,93 @@ class HumanRegressor :
         """
         
         parameters_dictionary = dict()
+        parameters_dictionary["equation_string"] = self._equation_string
+        print("Calling get_params: " + str(parameters_dictionary))
         return parameters_dictionary
     
-    def set_parameters(self, **parameters) :
+    def set_params(self, **parameters) :
+        """
+        Set internal parameters of the estimator.
+
+        Parameters
+        ----------
+        **parameters : dict
+            Dictionary of parameters.
+
+        Returns
+        -------
+        self
+
+        """
+        print("Calling set_params: " + str(parameters))
+        for parameter, value in parameters.items():
+            setattr(self, parameter, value)
+    
+        return self
+    
+    def check_parameters(self) :
+        """
+        Checks internal parameters for consistency, before starting data fitting.
         
-        warnings.warn("HumanCLassifier's internal parameters depend on the initial equation, so a GridSearch might not work as intended.")
+        Returns
+        -------
+        None.
+
+        """
+        # first, let's check if there is an '=' sign in the expression
+        tokens = self._equation_string.split("=")
+        equation_string = ""
+        target_variable_string = ""
+        if len(tokens) < 2 and self._target_variable_string is not None :
+            target_variable_string = self._target_variable_string
+            equation_string = tokens[0]
+        elif len(tokens) == 2 :
+            target_variable_string = tokens[0]
+            equation_string = tokens[1]
+        else :
+            # raise an exception
+            raise ValueError("String \"%s\"in equation_string cannot be parsed, or target_variable_string \"%s\" not specified." % (self._equation_string, str(self._target_variable_string)))
+                
+        # analyze the string through symbolic stuff
+        self._target_variable = sympy_parser.parse_expr(target_variable_string)
+        self._expression = sympy_parser.parse_expr(equation_string)
+        
+        # now, let's check the dictionary containing the association feature names -> variables
+        if self._variables_to_features is None or len(self._variables_to_features) == 0 :
+            warnings.warn("map_variables_to_features dictionary empty, HumanRegressor will make an educated guess")
+            all_symbols = sorted([str(s) for s in self._expression.atoms(Symbol)])
+            
+            self._variables_to_features = dict()
+            for i in range(0, len(all_symbols)) :
+                self._variables_to_features[all_symbols[i]] = i
+            
+        # let's get the list of the variables
+        self._variables = sorted(list(self._variables_to_features.keys()))
+        # and the list of the features, in the same order as the alphabetically sorted variables
+        self._features = [self._variables_to_features[v] for v in self._variables]
+        
+        # now, the *parameters* of the model are Symbols detected by sympy that are not associated to
+        # any *variable*; so, let's first get a list of all Symbols (as strings)
+        all_symbols = [str(s) for s in self._expression.atoms(Symbol)]
+        # and then select those who are not variables
+        self._parameters = sorted([s for s in all_symbols if s not in self._variables])
         
         return
 
+if __name__ == "__main__" :
+    
+    # check that a HumanRegressor can be instantiated
+    regressor = HumanRegressor("y = a_0 + a_1*x", map_variables_to_features={"x": 0})
+    
+    # produce some data, check that it actually works
+    X = np.linspace(0, 1, 100).reshape((100,1))
+    y = np.array([0.5 + 1*x for x in X]).ravel()
+    regressor.fit(X, y)
+    
+    print("Regressor: %s" % regressor)
+    import sys
+    sys.exit(0)
+    
+    from sklearn.utils.estimator_checks import check_estimator
+    regressor = HumanRegressor("y = 2*x")
+    print(check_estimator(regressor))
