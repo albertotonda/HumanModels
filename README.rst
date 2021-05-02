@@ -1,13 +1,12 @@
 |#f03c15|
 ``Warning: the package is still not available through pip or conda, so it currently can only be installed and used by cloning/downloading this repository.``
 
-humanmodels
-===========
-
 .. image:: img/hm.jpg
   :width: 400
   :alt: HumanModels logo
-
+  
+Human Models
+============
 .. inclusion-marker-for-sphinx-documentation
 
 This package provides human-designed, scikit-learn compatible models for
