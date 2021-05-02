@@ -29,6 +29,13 @@ On Linux, HumanModels can be installed through pip:
 
     pip install humanmodels
 
+You can also install the package by cloning or downloading this repository, ``cd`` into the directory and then execute:
+
+::
+
+    python -m build
+	python -m pip install dist/humanmodels*whl
+
 On Windows, HumanModels can be installed through Anaconda:
 
 ::
