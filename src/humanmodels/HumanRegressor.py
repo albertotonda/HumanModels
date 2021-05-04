@@ -31,7 +31,7 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
 
     """
     
-    def __init__(self, equation_string : str, target_variable_string : str = None, map_variables_to_features : dict = None) :
+    def __init__(self, equation_string : str, target_variable_string : str = None, map_variables_to_features : dict = None, random_state = None) :
         """
         Builder for the class.
         
@@ -71,6 +71,7 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         self.equation_string = equation_string
         self.target_variable_string = target_variable_string
         self.variables_to_features = map_variables_to_features
+        self.random_state = random_state
 
         return
     
@@ -351,4 +352,4 @@ if __name__ == "__main__" :
     regressor = HumanRegressor("y = a_0 + x*a_1 + x**2", map_variables_to_features={"x": 0})
     #print(regressor)
     #check_estimator(regressor)
-    print(is_regressor(regressor))
+    print("Is HumanRegressor a regressor?", is_regressor(regressor))
