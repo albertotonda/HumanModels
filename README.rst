@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/albertotonda/HumanModels.svg?branch=main)](https://travis-ci.com/albertotonda/HumanModels)
+
 |#f03c15|
 ``Warning: the package is still not available through pip or conda, so it currently can only be installed and used by cloning/downloading this repository.``
 
