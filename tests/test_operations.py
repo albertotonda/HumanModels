@@ -30,9 +30,9 @@ class TestHumanRegressor(unittest.TestCase) :
         X = np.linspace(0, 1, 100).reshape((100,1))
         y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X])
         
-        model_string = "a_0 + a_1*x + a_2*x**2 + a_3*x**3"
+        model_string = "y = a_0 + a_1*x + a_2*x**2 + a_3*x**3"
         vtf =  {"x": 0}
-        regressor = HumanRegressor(model_string, map_variables_to_features=vtf, target_variable="y")
+        regressor = HumanRegressor(model_string, map_variables_to_features=vtf)
         
         regressor.fit(X, y)
         y_pred = regressor.predict(X)
