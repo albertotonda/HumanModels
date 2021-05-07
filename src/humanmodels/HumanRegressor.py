@@ -349,7 +349,8 @@ if __name__ == "__main__" :
     
     from sklearn.utils.estimator_checks import check_estimator
     from sklearn.base import is_regressor
-    regressor = HumanRegressor("y = a_0 + x*a_1 + x**2", map_variables_to_features={"x": 0})
+    regressor = HumanRegressor("y = a_0 + x*a_1 + a_3*x**2", map_variables_to_features={"x": 0})
+    print(regressor)
     #print(regressor)
     #check_estimator(regressor)
     print("Is HumanRegressor a regressor?", is_regressor(regressor))

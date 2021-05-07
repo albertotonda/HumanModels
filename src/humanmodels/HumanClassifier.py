@@ -256,7 +256,7 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
                 # (or none did, and the default class label is not set); 
                 # for the moment, assign class label '-1'
                 #warnings.warn("For sample #%d, no class expression set to 'True', and no default class specified" % s)
-                y_pred[s] = self._default_class
+                y_pred[s] = -1 #self._default_class
         
         # y_pred is now an array of integers, but the local self.classes_ might
         # just be labels, so we need to perform a conversion before returning
