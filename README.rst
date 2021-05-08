@@ -1,6 +1,10 @@
 .. image:: https://travis-ci.com/albertotonda/HumanModels.svg?branch=main
     :target: https://travis-ci.com/albertotonda/HumanModels
 
+.. image:: https://readthedocs.org/projects/humanmodels/badge/?version=latest
+:target: https://humanmodels.readthedocs.io/en/latest/?badge=latest
+:alt: Documentation Status
+
 |#f03c15|
 ``Warning: the package is still not available through pip or conda, so it currently can only be installed and used by cloning/downloading this repository.``
 
