@@ -26,6 +26,15 @@ class TestHumanClassifier(unittest.TestCase) :
 
 class TestHumanRegressor(unittest.TestCase) :
     
+    def test_init(self) :
+        model_string = "y = 2 * x"
+        regressor = HumanRegressor(model_string, {"x": 0})
+        
+        model_string = "2 * x"
+        regressor = HumanRegressor(model_string, {"x": 0}, target_variable_string="y")
+        
+        return
+    
     def test_1_variable_regression(self) :
         X = np.linspace(0, 1, 100).reshape((100,1))
         y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X])
