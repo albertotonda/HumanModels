@@ -31,7 +31,7 @@ class TestHumanRegressor(unittest.TestCase) :
         regressor = HumanRegressor(model_string, {"x": 0})
         
         model_string = "2 * x"
-        regressor = HumanRegressor(model_string, {"x": 0}, target_variable_string="y")
+        regressor = HumanRegressor(model_string, map_variables_to_features={"x": 0}, target_variable_string="y")
         
         return
     
