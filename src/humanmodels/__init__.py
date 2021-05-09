@@ -7,7 +7,7 @@
 from .HumanClassifier import HumanClassifier
 from .HumanRegressor import HumanRegressor
 
-__version__ = "0.0.10"
+__version__ = "0.5.0"
 
 __all__ = [
         'HumanClassifier',
