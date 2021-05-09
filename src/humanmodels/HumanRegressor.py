@@ -17,6 +17,7 @@ from scipy.optimize import minimize
 from sympy import lambdify
 from sympy.parsing import sympy_parser
 from sympy.core.symbol import Symbol
+from sympy import Float, Number
 
 from sklearn.metrics import mean_squared_error
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
@@ -258,7 +259,6 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         """
         
         # this is a utility function
-        from sympy import Float, Number
         def printM(expr, num_digits):
             return expr.xreplace({n.evalf() : n if type(n)==int else Float(n, num_digits) for n in expr.atoms(Number)}) 
 

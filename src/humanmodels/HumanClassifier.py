@@ -17,9 +17,11 @@ from scipy.optimize import minimize
 from sympy import lambdify
 from sympy.parsing import sympy_parser
 from sympy.core.symbol import Symbol
+from sympy import Float, Number
 
 from sklearn.metrics import accuracy_score
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.utils.multiclass import unique_labels
 
@@ -64,7 +66,6 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
 
         # check the internal parameters
         self.check_parameters()
-        print("Random state: %s" % str(self.random_state))
 
         # first, let's collect the list of parameters to be optimized
         optimizable_parameters = [p for c in self._expressions.keys() for p in self._parameters[c]]
@@ -200,9 +201,9 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
         else :
             local_expressions_original = self._expressions.copy()
         
-        print(self.classes_)
-        print(local_expressions_original)
-        print(self._parameter_values)
+        #print(self.classes_)
+        #print(local_expressions_original)
+        #print(self._parameter_values)
         
         # if there are parameters, check that each parameter does have a value
         # also, if expressions have parameters, we need to replace them, 
@@ -261,7 +262,7 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
         # y_pred is now an array of integers, but the local self.classes_ might
         # just be labels, so we need to perform a conversion before returning
         #print("X=", X)
-        print(y_pred)
+        #print(y_pred)
         return np.array([self.classes_[yi] for yi in y_pred])
     
     def check_parameters(self) :
@@ -330,26 +331,34 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
         return
     
     def to_string(self) :
+
+        # this is a utility function, for nice formatting of the trained model
+        def printM(expr, num_digits):
+            return expr.xreplace({n.evalf() : n if type(n)==int else Float(n, num_digits) for n in expr.atoms(Number)}) 
         
-        if self._expressions is None :
-            return "Classifier not initialized, call '.fit'"
-        
-        return_string = ""
-        for c, e in self._expressions.items() :
-            return_string += "Class %d: " % c
-            return_string += str(e)
-            return_string += "; variables:" + self.variables_to_string(c)
-            return_string += "; parameters:" + self.parameters_to_string(c)
-            return_string += "\n"
+        try :
+            check_is_fitted(self, ["_expressions"])
             
-        if self._default_class is not None :
-            return_string += "Default class (if all other expressions are False): %d\n" % self._default_class
+            return_string = ""
+            for c, e in self._expressions.items() :
+                return_string += "Class %d: " % c
+                return_string += "; Model: " + str(e)
+                return_string += "; Trained model: " + str(printM(e.subs(self._parameter_values[c]), 4))
+                return_string += "; variables: " + self.variables_to_string(c)
+                return_string += "; parameters: " + self.parameters_to_string(c)
+                return_string += "\n"
+                
+            if self._default_class is not None :
+                return_string += "Default class (if all other expressions are False): %d\n" % self._default_class
+
+        except NotFittedError as e :
+                return "Classifier not initialized, call '.fit'"
             
         return return_string[:-1]
     
     def parameters_to_string(self, c) :
         
-        # TODO here we could put some checks like 'is_fitted'
+        # here we put a check to verify that the model 'is_fitted'
         return_string = ""
         for p in range(0, len(self._parameters[c])) :
             return_string += self._parameters[c][p] + "="
@@ -360,7 +369,7 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
             return_string = "None"
         else :
             return_string = return_string[:-1] # remove last ' '
-        
+    
         return return_string
     
     def variables_to_string(self, c) :

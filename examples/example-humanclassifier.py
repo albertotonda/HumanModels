@@ -33,6 +33,7 @@ if __name__ == "__main__" :
     
     # instantiate the classifier, also associating variables to features
     classifier = HumanClassifier(rule, {"sl": 0, "sw": 1})
+    classifier.fit(X, y) # there are no parameters to optimize, but this is for coherence with other scikit-learn classifiers
     print("Classifier:", classifier)
     y_pred = classifier.predict(X)
     
@@ -44,9 +45,10 @@ if __name__ == "__main__" :
     # can we do better, with more complex rules?
     rule = "sw -0.8*sl > -1.2"
     classifier_2 = HumanClassifier(rule, {"sl": 0, "sw": 1})
-    print("Classifier", classifier_2)
+    classifier_2.fit(X, y)
     y_pred = classifier_2.predict(X)
     accuracy = accuracy_score(y, y_pred)
+    print("Classifier", classifier_2)
     print("Final accuracy for the more complex classifier is %.4f" % accuracy)
 
     # example of HumanClassifier, with Iris all-classes
@@ -70,6 +72,7 @@ if __name__ == "__main__" :
     map_variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
     
     classifier = HumanClassifier(rules, map_variables_to_features)
+    classifier.fit(X, y)
     print(classifier)
     
     y_pred = classifier.predict(X)
@@ -99,6 +102,7 @@ if __name__ == "__main__" :
     
     print("\nAnother hand-designed classifier, but with learned parameters from a previous experiment")
     classifier = HumanClassifier(rules, map_variables_to_features)
+    classifier.fit(X, y)
     print(classifier)
     accuracy = accuracy_score(y, classifier.predict(X))
     print("Classification accuracy: %.4f" % accuracy)

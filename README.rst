@@ -58,7 +58,19 @@ HumanRegressor
 ``HumanRegressor`` is a regressor, initialized with a sympy-compatible
 text string describing an equation, and a dictionary mapping the
 correspondance between the variables named in the equation and the
-features in ``X``. An example of initialization:
+features in ``X``. Let's generate some data to test the algorithm:
+
+.. code:: python
+
+    import numpy as np
+    print("Creating data...")
+    X_train = np.zeros((100,3))
+    X_train[:,0] = np.linspace(0, 1, 100)
+    X_train[:,1] = np.random.rand(100)
+    X_train[:,2] = np.linspace(0, 1, 100)
+    y_train = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X_train])
+
+An example of initialization:
 
 .. code:: python
 
@@ -72,44 +84,40 @@ Printing the model as a string will return:
 
 ::
 
+   Model not initialized.
+
+We can now fit the model to the data: 
+
+.. code:: python
+
+    print("Fitting data...")
+    regressor.fit(X_train, y_train)
+    print(regressor)
+
+The code will produce:
+
+::
+
+    Fitting data...
     Model: y = a_1*x + a_2*z + a_3*x**2 + a_4*z**2 + 0.5
     Variables: ['x', 'z']
-    Parameters: ['a_1', 'a_2', 'a_3', 'a_4']
+    Parameters: {'a_1': 1.0000001886557832, 'a_2': 1.0000004533354703, 'a_3': 2.000000577731051, 'a_4': 2.0000005553527895}
+    Trained model: y = 2.0*x**2 + 1.0*x + 2.0*z**2 + 1.0*z + 0.5
 
 As the only variables provided in the ``variables_to_features``
 dictionary are named ``x``, ``y``, ``z``, all other alphabetic symbols
 (``a_1``, ``a_2``, ``a_3``, ``a_4``) are interpreted as trainable
-parameters. Let's generate some data and test the algorithm.
+parameters. The model also shows the optimized values of its parameters.
+Let's now check the performance on the training data:
 
 .. code:: python
-
-    import numpy as np
-    print("Creating data...")
-    X_train = np.zeros((100,3))
-    X_train[:,0] = np.linspace(0, 1, 100)
-    X_train[:,1] = np.random.rand(100)
-    X_train[:,2] = np.linspace(0, 1, 100)
-
-    y_train = np.array([0.5 + 1*x[0] + 1*x[2] + 2*x[0]**2 + 2*x[2]**2 for x in X_train])
-    print("Fitting data...")
-    regressor.fit(X_train, y_train)
-    print(regressor)
 
     y_pred = regressor.predict(X_train)
     from sklearn.metrics import mean_squared_error
     print("Mean squared error:", mean_squared_error(y_train, y_pred))
 
-The resulting output shows the optimized values for the parameters of
-the trained model, and its performance:
-
 ::
 
-    Creating data...
-    Fitting data...
-    Model: y = a_1*x + a_2*z + a_3*x**2 + a_4*z**2 + 0.5
-    Variables: ['x', 'z']
-    Parameters: {'a_1': 1.0000003000418696, 'a_2': 1.0000005475067253, 'a_3': 2.000000449862675, 'a_4': 2.000000427484416}
-    Trained model: y = 2.00000044986268*x**2 + 1.00000030004187*x + 2.00000042748442*z**2 + 1.00000054750673*z + 0.5
     Mean squared error: 7.72490931190691e-13
 
 The regressor can also be tested on unseen data, and since in this case

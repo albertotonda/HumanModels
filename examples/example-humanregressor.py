@@ -15,7 +15,7 @@ if __name__ == "__main__" :
     model_string = "a_0 + a_1*x + a_2*x**2 + a_3*x**3"
     vtf =  {"x": 0}
     
-    regressor = HumanRegressor(model_string, map_variables_to_features=vtf, target_variable="y")
+    regressor = HumanRegressor(model_string, map_variables_to_features=vtf, target_variable_string="y")
     print(regressor)
     
     print("Fitting data...")
@@ -55,7 +55,7 @@ if __name__ == "__main__" :
     model_string = "a_0 + a_1*x + a_2*y + a_3*x**2 + a_4*y**2"
     vtf = {"x": 0, "y": 2}
     
-    regressor = HumanRegressor(model_string, map_variables_to_features=vtf, target_variable="z")
+    regressor = HumanRegressor(model_string, map_variables_to_features=vtf, target_variable_string="z")
     print(regressor)
     
     print("Fitting data...")
@@ -65,7 +65,7 @@ if __name__ == "__main__" :
     print("\nAnother test")
     model_string = "y = 0.5 + a_1*x + a_2*z + a_3*x**2 + a_4*z**2"
     variables_to_features = {"x": 0, "z": 2}
-    regressor = HumanRegressor(model_string, variables_to_features)
+    regressor = HumanRegressor(model_string, map_variables_to_features=variables_to_features)
     print(regressor)
     import numpy as np
     import numpy as np
