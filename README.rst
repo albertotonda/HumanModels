@@ -6,7 +6,7 @@
     :alt: Documentation Status
 
 |#f03c15|
-``Warning: the package is still not available through pip or conda, so it currently can only be installed and used by cloning/downloading this repository.``
+``Warning: the package is still not available through conda, so it currently can only be installed and through pip, and by cloning/downloading this repository.``
 
 .. image:: img/hm.jpg
   :width: 400
