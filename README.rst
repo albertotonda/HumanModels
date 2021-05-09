@@ -11,7 +11,7 @@
 |#f03c15|
 ``Warning: the package is still not available through conda, so it currently can only be installed and through pip, and by cloning/downloading this repository.``
 
-.. image:: img/hm.jpg
+.. image:: https://raw.githubusercontent.com/albertotonda/HumanModels/main/img/hm.jpg
   :width: 400
   :alt: HumanModels logo
   
