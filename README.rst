@@ -84,7 +84,7 @@ Printing the model as a string will return:
 
 ::
 
-   Model not initialized.
+   Model not initialized, call '.fit(X, y)' 
 
 We can now fit the model to the data: 
 
@@ -208,17 +208,6 @@ with ``Iris``, this time using all three classes:
                     # the expression for class 0 and 2 return 'False'
     variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
     classifier = HumanClassifier(rules, variables_to_features)
-    print(classifier)
-
-::
-
-    Class 0: p_0*sl + sw > p_1; variables:sl -> 0 sw -> 1; parameters:p_0=? p_1=?
-    Class 2: pw > p_2; variables:pw -> 3; parameters:p_2=?
-    Default class (if all other expressions are False): 1
-
-We can now train the classifier:
-
-.. code:: python
 
     classifier.fit(X, y)
     print(classifier)
