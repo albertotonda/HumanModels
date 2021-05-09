@@ -5,6 +5,9 @@
     :target: https://humanmodels.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
+.. image:: https://badge.fury.io/py/humanmodels.svg
+    :target: https://badge.fury.io/py/humanmodels
+
 |#f03c15|
 ``Warning: the package is still not available through conda, so it currently can only be installed and through pip, and by cloning/downloading this repository.``
 
