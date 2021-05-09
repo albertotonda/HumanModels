@@ -262,7 +262,7 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         def printM(expr, num_digits):
             return expr.xreplace({n.evalf() : n if type(n)==int else Float(n, num_digits) for n in expr.atoms(Number)}) 
 
-        return_string = "Model not initialized"
+        return_string = "Model not initialized, call '.fit(X, y)'"
         if self._expression is not None :
             return_string = "Model: " + str(self._target_variable) + " = "
             return_string += str(self._expression)
@@ -278,8 +278,8 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
             return(return_string)
         
         else :
-            return("Model not initialized")
-        
+            return "Model not initialized, call '.fit(X, y)'"        
+
     def __str__(self) :
         return(self.to_string())
     

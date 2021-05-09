@@ -105,7 +105,7 @@ The code will produce:
     Trained model: y = 2.0*x**2 + 1.0*x + 2.0*z**2 + 1.0*z + 0.5
 
 As the only variables provided in the ``variables_to_features``
-dictionary are named ``x``, ``y``, ``z``, all other alphabetic symbols
+dictionary are named ``x``, and ``z``, all other alphabetic symbols
 (``a_1``, ``a_2``, ``a_3``, ``a_4``) are interpreted as trainable
 parameters. The model also shows the optimized values of its parameters.
 Let's now check the performance on the training data:
@@ -164,11 +164,22 @@ classification problem.
 
 ::
 
-    Classifier: Class 0: (sw > 2.7) & (sl < 6.0); variables:sl -> 0 sw -> 1; parameters:None
+    Model not initialized, call '.fit(X, y)' 
+
+Even if there are no trainable parameters, the classifier must still be trained using ``.fit(X,y)``,
+for compatibility with the ``scikit-learn`` package:
+
+.. code:: python
+    
+   classifier.fit(X, y)
+   print(classifier)
+
+::
+
+    Classifier: Class 0: (sw > 2.7) & (sl < 6.0); variables: sl -> 0 sw -> 1; parameters: None
     Default class (if all other expressions are False): 1
 
-In this case there are no trainable parameters, so the classifier can be
-used without calling ``.fit(X,y)``:
+And now, let's test the classifier:
 
 .. code:: python
 

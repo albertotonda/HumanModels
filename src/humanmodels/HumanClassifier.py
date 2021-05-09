@@ -352,7 +352,7 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
                 return_string += "Default class (if all other expressions are False): %d\n" % self._default_class
 
         except NotFittedError as e :
-                return "Classifier not initialized, call '.fit'"
+                return "Model not initialized, call '.fit(X, y)'"
             
         return return_string[:-1]
     
