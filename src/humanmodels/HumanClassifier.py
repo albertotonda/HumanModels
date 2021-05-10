@@ -12,8 +12,6 @@ import cma
 import numpy as np
 import warnings
 
-from scipy.optimize import minimize
-
 from sympy import lambdify
 from sympy.parsing import sympy_parser
 from sympy.core.symbol import Symbol

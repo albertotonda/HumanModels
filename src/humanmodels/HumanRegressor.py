@@ -32,7 +32,7 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
 
     """
     
-    def __init__(self, equation_string : str, target_variable_string : str = None, map_variables_to_features : dict = None, random_state = None) :
+    def __init__(self, equation_string : str, map_variables_to_features : dict = None, target_variable_string : str = None, random_state = None) :
         """
         Builder for the class.
         
@@ -162,6 +162,10 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         # check the optimizer chosen by the user, and launch minimization
         optimized_parameters = None
         if optimizer == 'bfgs' :
+            # TODO so far, I could not find a way to fix random seed for 'bfgs'
+            # maybe there is not supposed to be a random element? but sometimes 'bfgs'
+            # returns different results for the same settings...
+            # maybe fixing the random seed in numpy could help
             optimization_result = minimize(error_function, 
                                           np.zeros(len(self._parameters)), 
                                           args=(self._expression, self._variables, 
@@ -171,6 +175,7 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         elif optimizer == 'cma' :
             if optimizer_options is None : optimizer_options = dict()
             if verbose == False : optimizer_options['verbose'] = -9 # very quiet
+            if self.random_state is not None : optimizer_options['seed'] = self.random_state
             
             es = cma.CMAEvolutionStrategy(np.zeros(len(self._parameters)), 1.0, optimizer_options)
             es.optimize(error_function, 
