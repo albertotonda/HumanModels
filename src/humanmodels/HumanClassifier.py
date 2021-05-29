@@ -1,13 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Apr 23 21:06:03 2021
-
-TODO: scikit-learn compliant estimators DO NOT check the coherence of their
-hyperparameters in __init__ , but wait for the user to call .fit (for compatibility
-with grid search algorithms).
-
-@author: Alberto Tonda
-"""
 import cma
 import numpy as np
 import warnings
@@ -60,7 +51,37 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
             
         return
     
-    def fit(self, X, y, optimizer="cma", optimizer_options=None, verbose=False) :
+    def fit(self, X, y, optimizer : str = "cma", optimizer_options : dict = None, n_jobs : int = 0, verbose : bool = False) :
+        """
+        Fits the internal model to the data, using features in X and known values in y.
+        
+        Parameters
+        ----------
+        X : array, shape(n_samples, n_features)
+            Training data
+       
+        y : array, shape(n_samples, 1)
+            Training values for the target feature/variable
+        
+        optimizer : string, default="cma"
+            The optimizer that is going to be used. Acceptable values:
+                - "cma": Covariance-Matrix-Adaptation Evolution Strategy, derivative-free optimization.
+        
+        optimizer_options : dict, default=None
+            Dictionary of options that can be passed to the optimization algorithm. Shape and type depend on
+            the choice made for 'optimizer'.
+
+        n_jobs : int, default=0
+            Option that can be passed to the optimization algorithm, number of jobs to be executed in parallel.
+            Default is zero, avoids the use of multiprocessing. -1 uses all available CPUs.
+            
+        verbose : bool, default=False
+            If True, prints internal output to screen.
+
+        Returns
+        -------
+        Self.
+        """
 
         # check the internal parameters
         self.check_parameters()
@@ -86,59 +107,12 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
             warnings.warn("HumanClassifier.fit : there are no parameters to optimize.")
             return self
         
-        # we now create the error function
-        # TODO it might be maybe improved with logistic stuff and class probabilities
-        # TODO also penalize '-1' labels
-        def error_function(parameter_values, parameter_names, X, y) :
-            
-            # debug
-            #print(parameter_names, parameter_values)
-            
-            # replacement dictionary for parameters
-            replacement_dictionary = { parameter_names[i] : parameter_values[i] 
-                                      for i in range(0, len(parameter_names)) }
-            
-            # let's create a dictionary of lambdified functions, after replacing parameters
-            funcs = { c: lambdify(self._variables[c], self._expressions[c].subs(replacement_dictionary), "numpy") 
-                     for c in self._expressions.keys()}
-            
-            # dictionary of outputs for each lambdified function
-            y_pred = np.zeros(y.shape)
-            penalty = 0
-            
-            # let's go over the samples in X
-            for s in range(0, X.shape[0]) :
-                classes = []
-                for c in self._expressions.keys() :
-                    #print("\tSample #%d, class %d: %s" % (s, c, str(X[s,self._features[c]])))
-                    prediction = False
-                    if len(self._features[c]) != 1 :
-                        prediction = funcs[c](*X[s,self._features[c]])
-                    else :
-                        prediction = funcs[c](X[s,self._features[c]])
-                    if prediction == True : classes.append(c)
-                
-                if len(classes) == 1 :
-                    y_pred[s] = classes[0]
-                elif len(classes) > 1 :
-                    y_pred[s] = -1
-                    penalty += 1
-                elif len(classes) == 0 :
-                    if self._default_class is not None :
-                        y_pred[s] = self._default_class
-                    else :
-                        y_pred[s] = -1
-                        penalty += 1
-            
-            # TODO penalty for 'undecided'?
-            return (1.0 - accuracy_score(y, y_pred)) #- 0.01 * (penalty/float(y.shape[0]))
-        
         # and now that the error function is defined, we can optimize!
         if optimizer_options is None : optimizer_options = dict()
         # define level of verbosity, but only if it was not specified in the options
         if 'verbose' not in optimizer_options :
             optimizer_options['verbose'] = -9 # -9 is very quiet
-                if verbose == True : optimizer_options['verbose'] = 1 
+            if verbose == True : optimizer_options['verbose'] = 1 
         
         # just to increase likelihood of repeatable results, population size of CMA-ES
         # is here taken to be the default value * 10
@@ -147,7 +121,7 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
         if self.random_state is not None :
             optimizer_options['seed'] = self.random_state
         es = cma.CMAEvolutionStrategy(np.zeros(len(optimizable_parameters)), 1.0, optimizer_options)
-        es.optimize(error_function, args=(optimizable_parameters, X, y))
+        es.optimize(self.error_function, args=(optimizable_parameters, X, y), n_jobs=n_jobs)
         optimized_parameters = { optimizable_parameters[i] : es.result[0][i] 
                                 for i in range(0, len(optimizable_parameters)) }
         
@@ -158,6 +132,55 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
                 self._parameter_values[c][self._parameters[c][i]] = optimized_parameters[self._parameters[c][i]]
         
         return self
+
+    # we now create the error function
+    # TODO it might be maybe improved with logistic stuff and class probabilities
+    # TODO also penalize '-1' labels
+    def error_function(self, parameter_values, parameter_names, X, y) :
+        """
+        Error function, to be optimized. The parameters in each expression given for each class
+        are replaced by the candidate parameter values, and the predictions of the model are then
+        compared against class labels, obtaining a cost function value depending on the results.
+        """
+        
+        # replacement dictionary for parameters
+        replacement_dictionary = { parameter_names[i] : parameter_values[i] 
+                                  for i in range(0, len(parameter_names)) }
+        
+        # let's create a dictionary of lambdified functions, after replacing parameters
+        funcs = { c: lambdify(self._variables[c], self._expressions[c].subs(replacement_dictionary), "numpy") 
+                 for c in self._expressions.keys()}
+        
+        # dictionary of outputs for each lambdified function
+        y_pred = np.zeros(y.shape)
+        penalty = 0
+        
+        # let's go over the samples in X
+        for s in range(0, X.shape[0]) :
+            classes = []
+            for c in self._expressions.keys() :
+                #print("\tSample #%d, class %d: %s" % (s, c, str(X[s,self._features[c]])))
+                prediction = False
+                if len(self._features[c]) != 1 :
+                    prediction = funcs[c](*X[s,self._features[c]])
+                else :
+                    prediction = funcs[c](X[s,self._features[c]])
+                if prediction == True : classes.append(c)
+            
+            if len(classes) == 1 :
+                y_pred[s] = classes[0]
+            elif len(classes) > 1 :
+                y_pred[s] = -1
+                penalty += 1
+            elif len(classes) == 0 :
+                if self._default_class is not None :
+                    y_pred[s] = self._default_class
+                else :
+                    y_pred[s] = -1
+                    penalty += 1
+        
+        # TODO penalty for 'undecided'?
+        return (1.0 - accuracy_score(y, y_pred)) #- 0.01 * (penalty/float(y.shape[0]))
     
     def predict(self, X) :
         """
@@ -391,26 +414,43 @@ if __name__ == "__main__" :
 
     from sklearn import datasets
     X, y = datasets.load_iris(return_X_y=True)
-    for i in range(0, y.shape[0]) :
-        if y[i] != 0 : y[i] = 1
+    y_bin = y.copy()
+    for i in range(0, y_bin.shape[0]) :
+        if y_bin[i] != 0 : y_bin[i] = 1
     rule = "(sl < 6.0) & (sw > 2.7)"
     
     classifier = HumanClassifier(rule, {"sl": 0, "sw": 1})
-    y_pred = classifier.fit(X, y)
+    y_pred = classifier.fit(X, y_bin)
     print("Classifier:", classifier)
     y_pred = classifier.predict(X)
     
-    accuracy = accuracy_score(y, y_pred)
+    accuracy = accuracy_score(y_bin, y_pred)
     print("Final accuracy for the classifier is %.4f" % accuracy)
+
+    # multi-class test, with optimization
+    rules = {
+            0: "sw + p_0*sl > p_1",
+            2: "pw > p_2",
+            1: ""}  # this means that a sample will be associated to class 1 if both
+                # the expression for class 0 and 2 return 'False'
+    variables_to_features = {'sl': 0, 'sw': 1, 'pw': 3}
+    classifier = HumanClassifier(rules, variables_to_features)
+    classifier.fit(X, y, optimizer_options={'verbose': 3}, n_jobs=7)
+    print(classifier)
+    y_pred = classifier.predict(X)
+    accuracy = accuracy_score(y, y_pred)
+    print("Classification accuracy: %.4f" % accuracy)
+
     
-    # check if everything is in place for HumanClassifier to be considered a BaseEstimator
-    print("Checking if HumanClassifier is an estimator...")
-    classifier = HumanClassifier({0: "a_1 * x_1 + a_2 * x_2 > 0", 1: "a_3 * x_1 + a_4 * x_2 > 0", 2: ""}, {"x_1": 0, "x_2": 1})
-    from sklearn.utils.estimator_checks import check_estimator
-    check_estimator(classifier)
-    print("HumanClassifier is an estimator!")
-    
-    # also, check if it is considered an instance of a classifier
-    print("Checking if HumanClassifier is a classifier...")
-    from sklearn.base import is_classifier
-    print("Is HumanClassifier a classifier?", is_classifier(classifier))
+    if False :
+        # check if everything is in place for HumanClassifier to be considered a BaseEstimator
+        print("Checking if HumanClassifier is an estimator...")
+        classifier = HumanClassifier({0: "a_1 * x_1 + a_2 * x_2 > 0", 1: "a_3 * x_1 + a_4 * x_2 > 0", 2: ""}, {"x_1": 0, "x_2": 1})
+        from sklearn.utils.estimator_checks import check_estimator
+        check_estimator(classifier)
+        print("HumanClassifier is an estimator!")
+        
+        # also, check if it is considered an instance of a classifier
+        print("Checking if HumanClassifier is a classifier...")
+        from sklearn.base import is_classifier
+        print("Is HumanClassifier a classifier?", is_classifier(classifier))

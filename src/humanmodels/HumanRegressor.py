@@ -77,7 +77,7 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         return
     
     
-    def fit(self, X, y, map_variables_to_features : dict = None, optimizer_options : dict = None, optimizer : str = "bfgs", verbose: bool = False) :
+    def fit(self, X, y, map_variables_to_features : dict = None, optimizer_options : dict = None, optimizer : str = "bfgs", n_jobs : int = 0, verbose: bool = False) :
         """
         Fits the internal model to the data, using features in X and known values in y.
         
@@ -102,6 +102,10 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         optimizer_options : string, default=None
             Options that can be passed to the optimization algorithm. Shape and type depend on
             the choice made for 'optimizer'.
+
+        n_jobs : int, default=0
+            Option that can be passed to the optimization algorithm, number of jobs to be executed in parallel.
+            Default is zero, avoids the use of multiprocessing. -1 uses all available CPUs.
             
         verbose : bool, default=False
             If True, prints internal output to screen.
@@ -124,52 +128,23 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         if len(self._parameters) == 0 :
             warnings.warn("No parameters specified, '.fit' has nothing to train")
             return self
-        
-        # we first define the function to be optimized; in order to have maximum
-        # efficiency, we will need to use sympy's lambdify'
-        def error_function(parameter_values, expression, variables, parameter_names, features, y) :
-            
-            # replace parameters with their values, assuming they appear alphabetically
-            replacement_dictionary = {parameter_names[i] : parameter_values[i] for i in range(0, len(parameter_names))}
-            local_expression = expression.subs(replacement_dictionary)
-            if verbose : print("Expression after replacing parameters:", local_expression)
-            
-            # lambdify the expression, now only variables should be left as variables
-            if verbose : print("Lambdifying expression...")
-            f = lambdify(variables, local_expression, 'numpy')
-            
-            # prepare a subset of the dataset, considering only the features connected to the
-            # variables in the model
-            x = X[:,features]
-            
-            # run the lambdified function on X, obtaining y_pred
-            # now, there are two cases: if the input of the function is more than 1-dimensional,
-            # it should be flattened as positional arguments, using f(*X[i]);
-            # but if it is 1-dimensional, this will raise an exception, so we need to test this
-            if verbose : print("Testing the function")
-            y_pred = np.zeros(y.shape)
-            if len(features) != 1 :
-                for i in range(0, X.shape[0]) : y_pred[i] = f(*x[i])
-            else :
-                for i in range(0, X.shape[0]) : y_pred[i] = f(x[i])
-            if verbose : print(y_pred)
-            
-            if verbose : print("Computing mean squared error")
-            mse = mean_squared_error(y, y_pred)
-            if verbose : print("mse:", mse)
-            return mse
+
+        # prepare a subset of the dataset, considering only the features connected to the
+        # variables in the model
+        X_reduced = X[:, self._features]
         
         # check the optimizer chosen by the user, and launch minimization
         optimized_parameters = None
         if optimizer == 'bfgs' :
-            # TODO so far, I could not find a way to fix random seed for 'bfgs'
+            # so far, I could not find a way to fix random seed for 'bfgs'
             # maybe there is not supposed to be a random element? but sometimes 'bfgs'
             # returns different results for the same settings...
             # maybe fixing the random seed in numpy could help
-            optimization_result = minimize(error_function, 
+            if self.random_state is not None : np.random.seed(random_seed)
+
+            optimization_result = minimize(self.error_function, 
                                           np.zeros(len(self._parameters)), 
-                                          args=(self._expression, self._variables, 
-                                                self._parameters, self._features, y))
+                                          args=(X_reduced, y))
             optimized_parameters = optimization_result.x
             
         elif optimizer == 'cma' :
@@ -178,9 +153,9 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
             if self.random_state is not None : optimizer_options['seed'] = self.random_state
             
             es = cma.CMAEvolutionStrategy(np.zeros(len(self._parameters)), 1.0, optimizer_options)
-            es.optimize(error_function, 
-                        args=(self._expression, self._variables, 
-                        self._parameters, self._features, y))
+            es.optimize(self.error_function,
+                        args=(X_reduced, y),
+                        n_jobs=n_jobs)
             optimized_parameters = es.result[0]
             
         else :
@@ -194,6 +169,45 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         
         # return self, for scikit-learn compatibility
         return self
+
+    # we first define the function to be optimized; in order to have maximum
+    # efficiency, we will need to use sympy's lambdify'
+    def error_function(self, parameter_values, X, y, verbose=False) :
+        """
+        Error function to be optimized. Inside the error function, the local sympy expression
+        will have its parameters replaced with candidate values.
+
+        Returns
+        -------
+        mse : float
+            Mean squared error of the model's prediction with the candidate parameters, agains true values in 'y'.
+        """
+        
+        # replace parameters with their values, assuming they appear alphabetically
+        replacement_dictionary = {self._parameters[i] : parameter_values[i] for i in range(0, len(self._parameters))}
+        local_expression = self._expression.subs(replacement_dictionary)
+        if verbose : print("Expression after replacing parameters:", local_expression)
+        
+        # lambdify the expression, now only variables should be left as variables
+        if verbose : print("Lambdifying expression...")
+        f = lambdify(self._variables, local_expression, 'numpy')
+        
+        # run the lambdified function on X, obtaining y_pred
+        # now, there are two cases: if the input of the function is more than 1-dimensional,
+        # it should be flattened as positional arguments, using f(*X[i]);
+        # but if it is 1-dimensional, this will raise an exception, so we need to test this
+        if verbose : print("Testing the function")
+        y_pred = np.zeros(y.shape)
+        if len(self._features) != 1 :
+            for i in range(0, X.shape[0]) : y_pred[i] = f(*X[i])
+        else :
+            for i in range(0, X.shape[0]) : y_pred[i] = f(X[i])
+        if verbose : print(y_pred)
+        
+        if verbose : print("Computing mean squared error")
+        mse = mean_squared_error(y, y_pred)
+        if verbose : print("mse:", mse)
+        return mse
     
     def predict(self, X, map_variables_to_features=None, verbose=False) :
         """
@@ -347,7 +361,7 @@ if __name__ == "__main__" :
     # produce some data, check that it actually works
     X = np.linspace(0, 1, 100).reshape((100,1))
     y = np.array([0.5 + 1*x for x in X]).ravel()
-    regressor.fit(X, y)
+    regressor.fit(X, y)#, optimizer='cma', optimizer_options={'popsize': 100, 'verbose': 3}, n_jobs=7)
     
     print("Regressor: %s" % regressor)
     print("Score: %.4f" % regressor.score(X, y))
@@ -359,3 +373,14 @@ if __name__ == "__main__" :
     #print(regressor)
     #check_estimator(regressor)
     print("Is HumanRegressor a regressor?", is_regressor(regressor))
+
+    print("Testing a more complex model...")
+    X = np.linspace(0, 1, 100).reshape((100,1))
+    y = np.array([0.5 + 1*x + 2*x**2 + 3*x**3 for x in X]).ravel()
+    
+    model_string = "y = a_0 + a_1*x + a_2*x**2 + a_3*x**3"
+    vtf =  {"x": 0}
+    regressor = HumanRegressor(model_string, map_variables_to_features=vtf)
+    
+    regressor.fit(X, y, optimizer='cma', n_jobs=7, optimizer_options={'verbose': 3})
+    print(regressor)
