@@ -8,9 +8,6 @@
 .. image:: https://badge.fury.io/py/humanmodels.svg
     :target: https://badge.fury.io/py/humanmodels
 
-|#f03c15|
-``Warning: the package is still not available through conda, so it currently can only be installed and through pip, and by cloning/downloading this repository.``
-
 .. image:: https://raw.githubusercontent.com/albertotonda/HumanModels/main/img/hm.jpg
   :width: 400
   :alt: HumanModels logo
@@ -46,11 +43,11 @@ You can also install the package by cloning or downloading this repository, ``cd
     python -m build
     python -m pip install dist/humanmodels*whl
 
-On Windows, HumanModels can be installed through Anaconda:
+On Windows, HumanModels can be installed through the Anaconda Prompt:
 
 ::
 
-    conda install humanmodels
+    pip install humanmodels
 
 Examples
 --------
