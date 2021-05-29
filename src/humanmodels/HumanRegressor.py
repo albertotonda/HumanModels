@@ -1,13 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Apr 23 21:06:03 2021
-
-TODO: scikit-learn compliant estimators DO NOT check the coherence of their
-hyperparameters in __init__ , but wait for the user to call .fit (for compatibility
-with grid search algorithms).
-
-@author: Alberto Tonda
-"""
 import cma
 import numpy as np
 import warnings
