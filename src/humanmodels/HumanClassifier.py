@@ -135,9 +135,10 @@ class HumanClassifier(BaseEstimator, ClassifierMixin) :
         
         # and now that the error function is defined, we can optimize!
         if optimizer_options is None : optimizer_options = dict()
-        optimizer_options['verbose'] = -9 # -9 is very quiet
-        
-        if verbose == True : optimizer_options['verbose'] = 1 
+        # define level of verbosity, but only if it was not specified in the options
+        if 'verbose' not in optimizer_options :
+            optimizer_options['verbose'] = -9 # -9 is very quiet
+                if verbose == True : optimizer_options['verbose'] = 1 
         
         # just to increase likelihood of repeatable results, population size of CMA-ES
         # is here taken to be the default value * 10

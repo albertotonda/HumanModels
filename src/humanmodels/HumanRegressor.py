@@ -174,7 +174,7 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
             
         elif optimizer == 'cma' :
             if optimizer_options is None : optimizer_options = dict()
-            if verbose == False : optimizer_options['verbose'] = -9 # very quiet
+            if verbose == False and 'verbose' not in optimizer_options : optimizer_options['verbose'] = -9 # very quiet
             if self.random_state is not None : optimizer_options['seed'] = self.random_state
             
             es = cma.CMAEvolutionStrategy(np.zeros(len(self._parameters)), 1.0, optimizer_options)
