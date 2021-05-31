@@ -196,7 +196,14 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         if verbose : print(y_pred)
         
         if verbose : print("Computing mean squared error")
-        mse = mean_squared_error(y, y_pred)
+        # we should try to catch a ValueError here, that arises if the values are too big or contain NaN
+        # and if the error appears, let's return a really high value (max float)
+        mse = 0.0
+        try :
+            mse = mean_squared_error(y, y_pred)
+        except ValueError as e :
+            mse = np.finfo(float).max 
+
         if verbose : print("mse:", mse)
         return mse
     
