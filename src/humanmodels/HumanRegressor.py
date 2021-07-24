@@ -204,6 +204,10 @@ class HumanRegressor(BaseEstimator, RegressorMixin) :
         except ValueError as e :
             mse = np.finfo(float).max 
 
+        # at this point, mean squared error could still be infinite without creating errors (I think)
+        # so, let's make a check
+        if np.isinf(mse) : mse = np.finfo(float).max
+
         if verbose : print("mse:", mse)
         return mse
     
